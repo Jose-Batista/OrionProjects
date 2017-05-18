@@ -1,7 +1,10 @@
+import pickle
 
 from openeye import oechem
 from openeye import oeomega
 from openeye import oemolprop
+
+from vs_classes import VirtualScreeningData, MyInputPort
 
 from floe.api.parameter import (IntegerParameter, DataSetInputParameter, FileOutputParameter, FileInputParameter,
                                 DataSetOutputParameter, BaseParameter, ParameterGroup,
@@ -17,7 +20,7 @@ class TextOutputCube(SinkCube):
     """
     A cube that outputs text
     """
-    intake = BinaryInputPort('intake')
+    intake = MyInputPort('intake')
     name = FileOutputParameter('name',
                                required=True,
                                description='The name of the output file')
@@ -25,10 +28,12 @@ class TextOutputCube(SinkCube):
     classification = [["Output"]]
 
     def begin(self):
-        self.stream = open(self.args.name, 'wb')
+        self.stream = open(self.args.name, 'w')
 
     def write(self, data, port):
-        self.stream.write(data)
+        for i in range (len(data.baitset)):
+            print(data.baitset[i])
+            self.stream.write(data.baitset[i] + '\n')
 
     def end(self):
         self.stream.close()

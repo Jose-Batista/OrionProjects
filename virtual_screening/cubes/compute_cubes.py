@@ -1,13 +1,7 @@
-import pickle
 
 from openeye import oechem
 from openeye import oeomega
 from openeye import oemolprop
-
-from vs_classes import VirtualScreeningData, MyOutputPort
-
-from floe.api import (parameter, ParallelOEMolComputeCube, OEMolComputeCube, SourceCube,
-                            MoleculeOutputPort)
 
 from floe.api.parameter import (IntegerParameter, DataSetInputParameter, FileOutputParameter, FileInputParameter,
                                 DataSetOutputParameter, BaseParameter, ParameterGroup,
@@ -17,37 +11,36 @@ from floe.api.ports import (InputPort, OutputPort, Port, MoleculeInputPort,
                             MoleculeOutputPort, BinaryMoleculeInputPort, BinaryOutputPort,
                             MoleculeSerializerMixin, BinaryInputPort)
 
-class IndexInputCube(SourceCube):
+from floe.constants import ADVANCED
+
+from floe.api import (
+    parameter, ParallelOEMolComputeCube, OEMolComputeCube, SourceCube,
+    MoleculeOutputPort
+)
+
+class CalculateFPCube(ComputeCube):
     """
-    An input cube that reads an index log and return the baitsets
+    A compute Cube that reads Molecules and calculate the fingerprint
     """
 
-    classification = [["Input"]]
+    classification = [["Compute", "Fingerprint"]]
 
-    success = MyOutputPort('success')
+    fptype = parameter.IntParameter('fptype', default=105,
+                                    help_text="Fingerprint type to use for the ranking")
+    success = OutputPort('success')
     limit = IntegerParameter('limit',
                              required=False,
+                             level=ADVANCED,
                              description='Read up to N items from this cube')
     data_in = DataSetInputParameter('data_in',
                                     required=True,
                                     description='The index log to read from')
 
-    data = VirtualScreeningData()
-
     def begin(self):
-        self.stream = open(str(self.args.data_in), 'r')
 
-    def __iter__(self):
-        max_idx = self.args.limit
-        if max_idx is not None:
-            max_idx = int(max_idx)
-        count = 0
-        for line in self.stream:
-            self.data.baitset.append(line)
-            yield self.data
-            count += 1
-            if max_idx is not None and count == max_idx:
-                break
+    def process(self, mol):
+        fp = OEFingerprint()
+        OEMakeFP(fp, mol, self.args.fptype)
 
-    def end(self):
-        yield self.data
+        self.success.emit(mol.CreateCopy())
+

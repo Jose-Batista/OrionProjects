@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-from input_cubes import IndexInputCube
-from output_cubes import TextOutputCube
+from cubes.input_cubes import IndexInputCube
+from cubes.output_cubes import TextOutputCube
 from floe.api import WorkFloe
 #from floe.api import OEMolOStreamCube
 #from floe.api import OEMolIStreamCube
