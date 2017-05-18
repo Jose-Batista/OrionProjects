@@ -4,7 +4,7 @@ from openeye import oechem
 from openeye import oeomega
 from openeye import oemolprop
 
-from vs_classes import VirtualScreeningData, MyInputPort
+from vs_classes import VirtualScreeningData, ObjectInputPort
 
 from floe.api.parameter import (IntegerParameter, DataSetInputParameter, FileOutputParameter, FileInputParameter,
                                 DataSetOutputParameter, BaseParameter, ParameterGroup,
@@ -20,7 +20,7 @@ class TextOutputCube(SinkCube):
     """
     A cube that outputs text
     """
-    intake = MyInputPort('intake')
+    intake = ObjectInputPort('intake')
     name = FileOutputParameter('name',
                                required=True,
                                description='The name of the output file')

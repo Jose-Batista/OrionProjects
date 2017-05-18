@@ -10,13 +10,20 @@ class PickleEncoder(object):
     def decode(self, data):
         return pickle.loads(data)
 
-class MyInputPort(PickleEncoder, InputPort):
+class ObjectInputPort(PickleEncoder, InputPort):
     pass
 
-class MyOutputPort(PickleEncoder, OutputPort):
+class ObjectOutputPort(PickleEncoder, OutputPort):
     pass
 
 class VirtualScreeningData:
     def __init__(self):
         self.act_list = list()
         self.baitset = list()
+
+class ActiveList:
+    def __init__(self):
+        self.act_list = list()
+        self.fp_list = list()
+        self.baitset = list()
+

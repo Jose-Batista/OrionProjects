@@ -4,7 +4,7 @@ from openeye import oechem
 from openeye import oeomega
 from openeye import oemolprop
 
-from vs_classes import VirtualScreeningData, MyOutputPort
+from vs_classes import VirtualScreeningData, ObjectOutputPort
 
 from floe.api import (parameter, ParallelOEMolComputeCube, OEMolComputeCube, SourceCube,
                             MoleculeOutputPort)
@@ -24,7 +24,7 @@ class IndexInputCube(SourceCube):
 
     classification = [["Input"]]
 
-    success = MyOutputPort('success')
+    success = ObjectOutputPort('success')
     limit = IntegerParameter('limit',
                              required=False,
                              description='Read up to N items from this cube')
@@ -44,10 +44,8 @@ class IndexInputCube(SourceCube):
         count = 0
         for line in self.stream:
             self.data.baitset.append(line)
-            yield self.data
             count += 1
             if max_idx is not None and count == max_idx:
                 break
-
-    def end(self):
         yield self.data
+
