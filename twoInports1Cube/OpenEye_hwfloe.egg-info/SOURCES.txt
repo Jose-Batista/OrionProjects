@@ -1,0 +1,14 @@
+MANIFEST.in
+README.md
+manifest.json
+requirements.txt
+OpenEye_hwfloe.egg-info/PKG-INFO
+OpenEye_hwfloe.egg-info/SOURCES.txt
+OpenEye_hwfloe.egg-info/dependency_links.txt
+OpenEye_hwfloe.egg-info/requires.txt
+OpenEye_hwfloe.egg-info/top_level.txt
+floes/example_floe.py
+hwfloe_mod/__init__.py
+hwfloe_mod/cubes.py
+hwfloe_mod/utils.py
+hwfloe_mod/tests/test_cubes.py

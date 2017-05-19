@@ -1,0 +1,6 @@
+{
+  "name": "chunkdb",
+  "python_version" : 3.5,
+  "requirements": "requirements.txt",
+  "version": "0.1.0"
+}

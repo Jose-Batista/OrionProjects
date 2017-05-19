@@ -1,0 +1,21 @@
+Metadata-Version: 1.1
+Name: OpenEye-hwfloe
+Version: 0.1.0
+Summary: hwfloe
+===========================
+
+My very first Floe
+Home-page: UNKNOWN
+Author: Jose Batista
+Author-email: batista@eyesopen.com
+License: Other/Proprietary License
+Description: UNKNOWN
+Platform: UNKNOWN
+Classifier: Development Status :: 1 - Planning
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Scientific/Engineering :: Chemistry
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3.5
