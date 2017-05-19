@@ -1,5 +1,0 @@
-include README.md
-include manifest.json
-include requirements.txt
-recursive-include floes *.py
-recursive-include chunkdb_modules *.py

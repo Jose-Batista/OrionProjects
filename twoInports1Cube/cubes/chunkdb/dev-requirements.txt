@@ -1,9 +1,0 @@
-# Install all base requirements
--r requirements.txt
-
-# Dev Stack
-invoke
-pytest
-
-# Install local chunkdb
--e .
