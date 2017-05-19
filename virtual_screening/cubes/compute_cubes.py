@@ -32,13 +32,13 @@ class ConcatActiveList(ComputeCube):
     intake = MoleculeInputPort('intake')
     success = ObjectOutputPort('success')
 
-    act_list = list()
-
     def begin(self):
+        self.act_list = list()
         pass
 
     def process(self, mol, port):
         self.act_list.append(mol)
+        pass
 
     def end(self):
         self.success.emit(self.act_list)
@@ -91,5 +91,8 @@ class ParallelCalculateFP(ParallelOEMolComputeCube):
         oegraphsim.OEMakeFP(fp, mol, self.args.fptype)
 
         time.sleep(random.random())
+
         self.success.emit(mol)
 
+    def end(self):
+        pass
