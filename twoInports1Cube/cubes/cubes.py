@@ -4,7 +4,7 @@ from floe.api import (
     InputPort, MoleculeInputPort, MoleculeOutputPort, ComputeCube
 )
 
-from floe.api.orion import MultipartDatasetUploader, config_from_env
+#from floe.api.orion import MultipartDatasetUploader, config_from_env
 
 class TestCube(OEMolComputeCube):
 #    molintake = MoleculeInputPort('molintake')
