@@ -31,8 +31,9 @@ class TextOutputCube(SinkCube):
         self.stream = open(self.args.name, 'w')
 
     def write(self, data, port):
-        print(data)
-        self.stream.write(str(data) + '\n')
+        for mol in data:
+            print(mol)
+            self.stream.write(mol[0] + mol[1] + str(mol[2]) +'\n')
 
     def end(self):
         self.stream.close()

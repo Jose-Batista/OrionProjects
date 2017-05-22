@@ -55,7 +55,7 @@ class CalculateFPCube(ComputeCube):
                                     help_text="Fingerprint type to use for the ranking")
 
     intake = ObjectInputPort('intake')
-    success = BinaryOutputPort('success')
+    success = ObjectOutputPort('success')
 
 
     def begin(self):
@@ -77,8 +77,26 @@ class CalculateFPCube(ComputeCube):
             pass
 
     def end(self):
-        for fp in self.fp_list:
-            self.success.emit(fp)
+  #      for fp in self.fp_list:
+        self.success.emit(self.fp_list)
+class PrepareSimCalc(ComputeCube):
+    
+    fp_input = ObjectInputPort('fp_input')
+    baitset_input = ObjectInputPort('baitset_input')
+    success = ObjectOutputPort('success')
+    def begin(self):
+        self.baitsets = list()
+        self.fp_list = list()
+
+    def process(self, data, port):
+        if port is fp_input:
+            self.fp_list = data
+
+        if port is baitset_input:
+            self.baitsets.append(data)
+
+        if len(self.fp_list) > 0 and len(self.baitsets) > 0:
+            self.success.emit((self.fp_list, self.baitsets.pop()))
 
 class GetSimValCube(ComputeCube):
     """
@@ -91,59 +109,101 @@ class GetSimValCube(ComputeCube):
     fptype = parameter.IntegerParameter('fptype', default=105,
                                     help_text="Fingerprint type to use for the ranking")
 
-    #intake = parameter.DataSetInputParameter('intake',
-    #                                required=True,
-    #                                title='Dataset to read from',
-    #                                description='The dataset to read from')
-    #download_format = StringParameter(
-    #    'download_format',
-    #    choices=('.oeb.gz', '.oeb', '.smi', '.pdb', '.mol2'),
-    #    required=False,
-    #    description='The stream format to be used for retrieving molecules from Orion',
-    #    default=".oeb.gz")
+    data_in= parameter.DataSetInputParameter('data_in',
+                                    required=True,
+                                    title='Dataset to read from',
+                                    description='The dataset to read from')
+    download_format = parameter.StringParameter(
+        'download_format',
+        choices=('.oeb.gz', '.oeb', '.smi', '.pdb', '.mol2'),
+        required=False,
+        description='The stream format to be used for retrieving molecules from Orion',
+        default=".oeb.gz")
 
-    intake = MoleculeInputPort('intake')
-    fp_input = BinaryInputPort('fp_input')
-    baitset_input = ObjectInputPort('baitset_input')
+    #intake = MoleculeInputPort('intake')
+    act_data_input = ObjectInputPort('act_data_input')
     success = ObjectOutputPort('success')
 
 
     def begin(self):
-        self.max_tanimoto = 0
-        self.fp = None
+#        self.max_tanimoto = 0
+#        self.fp = None
         self.fp_list = None
         self.baitset = None
         pass
 
     def process(self, data, port):
-        if port == 'intake':
-            print('mol intake')
-            self.mol = 'test' #data.GetTitle()
-            self.fp = oegraphsim.OEFingerPrint()
-            oegraphsim.OEMakeFP(self.fp, data, self.args.fptype)
+       # if port == 'intake':
+       #     print('mol intake')
+       #     self.mol = 'test' #data.GetTitle()
+       #     self.fp = oegraphsim.OEFingerPrint()
+       #     oegraphsim.OEMakeFP(self.fp, data, self.args.fptype)
 
-        if port == 'fp_input':
-            print('fp_list input')
-            self.fp_list.append(data)
-
-        if port == 'baitset_input':
-            print('baitset input')
-            self.baitset = data
+        self.fp_list = data[0]
+        self.baitset = data[1]
         
-        if self.fp is not None and self.fp_list is not None and self.baitset is not None:
-            for idx in self.baitset:
-                act_fp = self.fp_list[idx]
-                tanimoto = oegraphsim.OETanimoto(self.fp, self.fp_list[idx])
-                if tanimoto > self.max_tanimoto:
-                    self.max_tanimoto = tanimoto
+        if self.fp_list is not None and self.baitset is not None:
+            with oechem.oemolistream(str(self.args.data_in)) as ifs:
+                for mol in ifs.GetOEMols():
+                    max_tanimoto = 0
+                    fp = oegraphsim.OEFingerPrint()
+                    oegraphsim.OEMakeFP(fp, mol, self.args.fptype)
+                    for idx in self.baitset:
+                        act_fp = self.fp_list[idx]
+                        tanimoto = oegraphsim.OETanimoto(fp, self.fp_list[idx])
+                        if tanimoto > max_tanimoto:
+                            max_tanimoto = tanimoto
 
-            self.success.emit(self.max_tanimoto)
-            print('Molecule : Similarity %.3f' %(self.max_tanimoto))
+                    self.success.emit((oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto))
+                    print('Molecule : Similarity %.3f' %(max_tanimoto))
 
         pass
 
     def end(self):
         pass
+
+class UpdateRanking(ComputeCube):
+    """
+    A compute Cube that receives Molecules from the screening db with their Similarity value and rank them in the rnking list
+    """
+
+    classification = [["Compute", "Ranking"]]
+
+    intake = ObjectInputPort('intake')
+    success = ObjectOutputPort('success')
+
+    topn = parameter.IntegerParameter('topn', default=100,
+                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
+
+    def begin(self):
+        self.ranking= list()
+
+    def process(self, data, port):
+        index = 0
+        if len(self.ranking) >= self.args.topn and data[2] < self.ranking[len(self.ranking)-1][2]:
+            return ranking
+        else:    
+            for top_mol in self.ranking:
+                if data[2] < top_mol[2]:
+                    index = self.ranking.index(top_mol) + 1
+                else:
+                    break
+
+            upper = self.ranking[:index]
+            lower = self.ranking[index:]
+            self.ranking = upper + [data] + lower
+
+            i = self.args.topn - 1
+            while i < len(self.ranking) - 1:
+                if self.ranking[i][2] != self.ranking[i + 1][2]:
+                    self.ranking = self.ranking[:i + 1]
+
+                    break
+                else:
+                    i += 1
+
+    def end(self):
+        self.success.emit(self.ranking)
 
 class ParallelCalculateFP(ParallelOEMolComputeCube):
     """
