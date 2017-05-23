@@ -89,6 +89,7 @@ class PrepareSimCalc(ComputeCube):
     def begin(self):
         self.baitsets = list()
         self.fp_list = list()
+        self.ranking = list()
 
     def process(self, data, port):
         if port is 'fp_input':
@@ -99,7 +100,7 @@ class PrepareSimCalc(ComputeCube):
 
         if len(self.fp_list) > 0 :
             while len(self.baitsets) > 0 :
-                self.success.emit((self.fp_list, self.baitsets.pop()))
+                self.success.emit((self.fp_list, self.baitsets.pop(), self.ranking))
 
 class ParallelGetSimValCube(ParallelComputeCube):
     """
@@ -112,10 +113,14 @@ class ParallelGetSimValCube(ParallelComputeCube):
     fptype = parameter.IntegerParameter('fptype', default=105,
                                     help_text="Fingerprint type to use for the ranking")
 
+    topn = parameter.IntegerParameter('topn', default=100,
+                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
+
     data_in= parameter.DataSetInputParameter('data_in',
                                     required=True,
                                     title='Dataset to read from',
                                     description='The dataset to read from')
+
     download_format = parameter.StringParameter(
         'download_format',
         choices=('.oeb.gz', '.oeb', '.smi', '.pdb', '.mol2'),
@@ -131,8 +136,8 @@ class ParallelGetSimValCube(ParallelComputeCube):
     def begin(self):
 #        self.max_tanimoto = 0
 #        self.fp = None
-        self.fp_list = None
-        self.baitset = None
+#        self.fp_list = None
+#        self.baitset = None
         pass
 
     def process(self, data, port):
@@ -144,6 +149,7 @@ class ParallelGetSimValCube(ParallelComputeCube):
 
         self.fp_list = data[0]
         self.baitset = data[1]
+        self.ranking = data[2]
         
         #if self.fp_list is not None and self.baitset is not None:
         with oechem.oemolistream(str(self.args.data_in)) as ifs:
@@ -151,19 +157,40 @@ class ParallelGetSimValCube(ParallelComputeCube):
                 max_tanimoto = 0
                 fp = oegraphsim.OEFingerPrint()
                 oegraphsim.OEMakeFP(fp, mol, self.args.fptype)
-                for idx in self.baitset:
+                for idx in self.baitset[1]:
                     act_fp = self.fp_list[idx]
                     tanimoto = oegraphsim.OETanimoto(fp, self.fp_list[idx])
                     if tanimoto > max_tanimoto:
                         max_tanimoto = tanimoto
+                self.update_ranking(mol, max_tanimoto)
 
-                self.success.emit((oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto))
-                print('Molecule : Similarity %.3f' %(max_tanimoto))
+            self.success.emit(self.ranking)
 
-        pass
 
-    def end(self):
-        pass
+    def update_ranking(self, mol, max_tanimoto):
+        index = 0
+        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][2]:
+            pass
+        else:    
+            for top_mol in self.ranking:
+                if max_tanimoto < top_mol[2]:
+                    index = self.ranking.index(top_mol) + 1
+                else:
+                    break
+
+            upper = self.ranking[:index]
+            lower = self.ranking[index:]
+            self.ranking = upper + [(oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto, self.baitset[0])] + lower
+
+            i = self.args.topn - 1
+            while i < len(self.ranking) - 1:
+                if self.ranking[i][2] != self.ranking[i + 1][2]:
+                    self.ranking = self.ranking[:i + 1]
+
+                    break
+                else:
+                    i += 1
+
 
 class ParallelUpdateRanking(ParallelComputeCube):
     """

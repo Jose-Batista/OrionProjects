@@ -36,7 +36,6 @@ class IndexInputCube(SourceCube):
 
 
     def begin(self):
-        #self.baitset = list()
         self.stream = open(str(self.args.data_in), 'r')
 
     def __iter__(self):
@@ -46,15 +45,16 @@ class IndexInputCube(SourceCube):
         count = 0
 
         for line in self.stream:
-            self.baitset = line
-            self.baitset = self.baitset.split(" ")
-            self.baitset = self.baitset[2:-1]
-            for i, idx in enumerate(self.baitset):
-                self.baitset[i] = int(idx)
+            baitset = line
+            baitset = baitset.split(" ")
+            set_id = baitset[1][-2:-1]
+            baitset = baitset[2:-1]
+            for i, idx in enumerate(baitset):
+                baitset[i] = int(idx)
             count += 1
             if max_idx is not None and count == max_idx:
                 break
-            yield self.baitset
+            yield (set_id, baitset)
 
 
 class OEMolTriggeredIStreamCube(ComputeCube):
