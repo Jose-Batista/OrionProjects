@@ -79,24 +79,27 @@ class CalculateFPCube(ComputeCube):
     def end(self):
   #      for fp in self.fp_list:
         self.success.emit(self.fp_list)
+
 class PrepareSimCalc(ComputeCube):
     
     fp_input = ObjectInputPort('fp_input')
     baitset_input = ObjectInputPort('baitset_input')
     success = ObjectOutputPort('success')
+
     def begin(self):
         self.baitsets = list()
         self.fp_list = list()
 
     def process(self, data, port):
-        if port is fp_input:
+        if port is 'fp_input':
             self.fp_list = data
 
-        if port is baitset_input:
+        if port is 'baitset_input':
             self.baitsets.append(data)
 
-        if len(self.fp_list) > 0 and len(self.baitsets) > 0:
-            self.success.emit((self.fp_list, self.baitsets.pop()))
+        if len(self.fp_list) > 0 :
+            while len(self.baitsets) > 0 :
+                self.success.emit((self.fp_list, self.baitsets.pop()))
 
 class GetSimValCube(ComputeCube):
     """
@@ -142,20 +145,20 @@ class GetSimValCube(ComputeCube):
         self.fp_list = data[0]
         self.baitset = data[1]
         
-        if self.fp_list is not None and self.baitset is not None:
-            with oechem.oemolistream(str(self.args.data_in)) as ifs:
-                for mol in ifs.GetOEMols():
-                    max_tanimoto = 0
-                    fp = oegraphsim.OEFingerPrint()
-                    oegraphsim.OEMakeFP(fp, mol, self.args.fptype)
-                    for idx in self.baitset:
-                        act_fp = self.fp_list[idx]
-                        tanimoto = oegraphsim.OETanimoto(fp, self.fp_list[idx])
-                        if tanimoto > max_tanimoto:
-                            max_tanimoto = tanimoto
+        #if self.fp_list is not None and self.baitset is not None:
+        with oechem.oemolistream(str(self.args.data_in)) as ifs:
+            for mol in ifs.GetOEMols():
+                max_tanimoto = 0
+                fp = oegraphsim.OEFingerPrint()
+                oegraphsim.OEMakeFP(fp, mol, self.args.fptype)
+                for idx in self.baitset:
+                    act_fp = self.fp_list[idx]
+                    tanimoto = oegraphsim.OETanimoto(fp, self.fp_list[idx])
+                    if tanimoto > max_tanimoto:
+                        max_tanimoto = tanimoto
 
-                    self.success.emit((oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto))
-                    print('Molecule : Similarity %.3f' %(max_tanimoto))
+                self.success.emit((oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto))
+                print('Molecule : Similarity %.3f' %(max_tanimoto))
 
         pass
 
@@ -181,7 +184,7 @@ class UpdateRanking(ComputeCube):
     def process(self, data, port):
         index = 0
         if len(self.ranking) >= self.args.topn and data[2] < self.ranking[len(self.ranking)-1][2]:
-            return ranking
+            pass
         else:    
             for top_mol in self.ranking:
                 if data[2] < top_mol[2]:
