@@ -101,7 +101,7 @@ class PrepareSimCalc(ComputeCube):
             while len(self.baitsets) > 0 :
                 self.success.emit((self.fp_list, self.baitsets.pop()))
 
-class GetSimValCube(ComputeCube):
+class ParallelGetSimValCube(ParallelComputeCube):
     """
     A compute Cube that receives a Molecule and a list of Fingerprints with a baitset of indices
     and returns the max Similarity value of the Molecule against the Fingerprints
@@ -165,7 +165,7 @@ class GetSimValCube(ComputeCube):
     def end(self):
         pass
 
-class UpdateRanking(ComputeCube):
+class ParallelUpdateRanking(ParallelComputeCube):
     """
     A compute Cube that receives Molecules from the screening db with their Similarity value and rank them in the rnking list
     """

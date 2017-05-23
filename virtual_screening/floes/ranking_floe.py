@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from cubes.input_cubes import IndexInputCube, OEMolTriggeredIStreamCube
-from cubes.compute_cubes import (CalculateFPCube, ParallelCalculateFP, ConcatMolList, GetSimValCube, UpdateRanking, 
+from cubes.compute_cubes import (CalculateFPCube, ParallelCalculateFP, ConcatMolList, ParallelGetSimValCube, ParallelUpdateRanking, 
                                 PrepareSimCalc)
 from cubes.output_cubes import TextOutputCube
 from floe.api import WorkFloe, CubeGroup
@@ -25,10 +25,10 @@ accu_act = ConcatMolList('accumulate actives')
 calc_fp = CalculateFPCube('calculate fingerprints')
 
 prep_sim_calc = PrepareSimCalc('prepare similarity calculation')
-calc_sim = GetSimValCube('calculate similarity value')
+calc_sim = ParallelGetSimValCube('calculate similarity value')
 calc_sim.promote_parameter('data_in', promoted_name='screen_db')
 
-update_ranking = UpdateRanking('update ranking')
+update_ranking = ParallelUpdateRanking('update ranking')
 
 ofs = TextOutputCube('ofs')
 ofs.promote_parameter('name', promoted_name='ofs')
