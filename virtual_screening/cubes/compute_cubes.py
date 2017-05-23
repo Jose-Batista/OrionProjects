@@ -165,8 +165,8 @@ class ParallelGetSimValCube(ParallelComputeCube):
                 cur_rank.append((cur_mol[0], cur_mol[1], float(cur_mol[5]), self.baitset[0]))
             if len(self.ranking) == 0:
                 self.ranking = cur_rank
-        #    else:
-        #        self.ranking = MergeRankings(self.ranking, cur_rank, topn)
+            else:
+                self.merge_ranking(cur_rank)
 
         #if self.fp_list is not None and self.baitset is not None:
         #with oechem.oemolistream(str(self.args.data_in)) as ifs:
@@ -183,6 +183,49 @@ class ParallelGetSimValCube(ParallelComputeCube):
 
         self.success.emit(self.ranking)
 
+    def merge_ranking(self, ranking):
+        merged_list = list()
+        i = 0
+        j = 0
+        count = 0
+        id_set = set()
+        while i < len(self.ranking):
+            while j < len(ranking) and ranking[j][2] > self.ranking[i][2]:
+                if ranking[j][1] not in id_set: 
+                    if count < self.args.topn or ranking[j][2] == merged_list[count-1][2]:
+                        merged_list.append(ranking[j])
+                        count += 1
+                        id_set.add(ranking[j][1])
+                        j += 1
+                    else:
+                        break
+                else:
+                    j += 1
+
+            if self.ranking[i][1] not in id_set: 
+                if self.ranking[i] not in id_set and (count < self.args.topn or self.ranking[i][2] == merged_list[count-1][2]):
+                    merged_list.append(self.ranking[i])  
+                    count += 1
+                    id_set.add(self.ranking[i][1])
+                    i += 1
+                else:
+                    break
+            else:
+                i += 1
+
+        while j < len(ranking):
+            if ranking[j][1] not in id_set: 
+                if ranking[j] not in id_set and (count < self.args.topn or ranking[j][2] == merged_list[count-1][2]):
+                    merged_list.append(ranking[j])
+                    count += 1
+                    id_set.add(ranking[j][1])
+                    j += 1
+                else:
+                    break
+            else:
+                j += 1
+
+        self.ranking = merged_list
 
     def update_ranking(self, mol, max_tanimoto):
         index = 0
