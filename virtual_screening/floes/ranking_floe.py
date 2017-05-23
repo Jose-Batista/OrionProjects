@@ -34,18 +34,18 @@ ofs = TextOutputCube('ofs')
 ofs.promote_parameter('name', promoted_name='ofs')
 
 # Create Cube group
-group = CubeGroup(cubes=[calc_fp, prep_sim_calc, calc_sim])
+group = CubeGroup(cubes=[prep_sim_calc, calc_sim])
 
 # Add Groups to Workfloe
 job.add_group(group)
 
 # Add Cubes to Floe
-job.add_cubes(act_reader, index_reader, accu_act, calc_fp, prep_sim_calc, calc_sim, ofs)
+job.add_cubes(act_reader, index_reader, accu_act, prep_sim_calc, calc_sim, ofs)
 
 # Connect ports
 act_reader.success.connect(accu_act.intake)
-accu_act.success.connect(calc_fp.intake)
-calc_fp.success.connect(prep_sim_calc.fp_input)
+accu_act.success.connect(prep_sim_calc.act_input)
+#calc_fp.success.connect(prep_sim_calc.fp_input)
 index_reader.success.connect(prep_sim_calc.baitset_input)
 
 prep_sim_calc.success.connect(calc_sim.act_data_input)

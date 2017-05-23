@@ -1,4 +1,7 @@
 
+import json,requests
+import urllib.parse as parse
+
 from openeye import oechem
 from openeye import oegraphsim
 from openeye import oeomega
@@ -81,26 +84,26 @@ class CalculateFPCube(ComputeCube):
         self.success.emit(self.fp_list)
 
 class PrepareSimCalc(ComputeCube):
-    
-    fp_input = ObjectInputPort('fp_input')
+
+    act_input = ObjectInputPort('act_input')
     baitset_input = ObjectInputPort('baitset_input')
     success = ObjectOutputPort('success')
 
     def begin(self):
         self.baitsets = list()
-        self.fp_list = list()
+        self.act_list = list()
         self.ranking = list()
 
     def process(self, data, port):
-        if port is 'fp_input':
-            self.fp_list = data
+        if port is 'act_input':
+            self.act_list = data
 
         if port is 'baitset_input':
             self.baitsets.append(data)
 
-        if len(self.fp_list) > 0 :
+        if len(self.act_list) > 0 :
             while len(self.baitsets) > 0 :
-                self.success.emit((self.fp_list, self.baitsets.pop(), self.ranking))
+                self.success.emit((self.act_list, self.baitsets.pop(), self.ranking))
 
 class ParallelGetSimValCube(ParallelComputeCube):
     """
@@ -147,24 +150,46 @@ class ParallelGetSimValCube(ParallelComputeCube):
        #     self.fp = oegraphsim.OEFingerPrint()
        #     oegraphsim.OEMakeFP(self.fp, data, self.args.fptype)
 
-        self.fp_list = data[0]
+        self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
-        
-        #if self.fp_list is not None and self.baitset is not None:
-        with oechem.oemolistream(str(self.args.data_in)) as ifs:
-            for mol in ifs.GetOEMols():
-                max_tanimoto = 0
-                fp = oegraphsim.OEFingerPrint()
-                oegraphsim.OEMakeFP(fp, mol, self.args.fptype)
-                for idx in self.baitset[1]:
-                    act_fp = self.fp_list[idx]
-                    tanimoto = oegraphsim.OETanimoto(fp, self.fp_list[idx])
-                    if tanimoto > max_tanimoto:
-                        max_tanimoto = tanimoto
-                self.update_ranking(mol, max_tanimoto)
 
-            self.success.emit(self.ranking)
+        #response = requests.get( baseurl )
+        #data = response.json()
+        baseurl = "http://10.0.1.22:8069"
+        fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
+        database = fptypes[self.args.fptype] + "_db"
+        for idx in self.baitset[1]:
+            smiles = oechem.OEMolToSmiles(self.act_list[idx])
+            safe_smiles = parse.quote(smiles)
+            url = "%s/%s/hitlist?smiles=%s&oformat=csv&maxhits=%d" %(baseurl, database, safe_smiles, self.args.topn) 
+            response = requests.get( url )
+            hitlist = response.content.decode().split('\n')
+            hitlist.pop(0)
+            hitlist.pop()
+            cur_rank = list()
+            for mol in hitlist:
+                cur_mol = mol.split(',')
+                cur_rank.append((cur_mol[0], cur_mol[1], float(cur_mol[5]), self.baitset[0]))
+            if len(self.ranking) == 0:
+                self.ranking = cur_rank
+        #    else:
+        #        self.ranking = MergeRankings(self.ranking, cur_rank, topn)
+
+        #if self.fp_list is not None and self.baitset is not None:
+        #with oechem.oemolistream(str(self.args.data_in)) as ifs:
+        #    for mol in ifs.GetOEMols():
+        #        max_tanimoto = 0
+        #        fp = oegraphsim.OEFingerPrint()
+        #        oegraphsim.OEMakeFP(fp, mol, self.args.fptype)
+        #        for idx in self.baitset[1]:
+        #            act_fp = self.fp_list[idx]
+        #            tanimoto = oegraphsim.OETanimoto(fp, self.fp_list[idx])
+        #            if tanimoto > max_tanimoto:
+        #                max_tanimoto = tanimoto
+        #        self.update_ranking(mol, max_tanimoto)
+
+        self.success.emit(self.ranking)
 
 
     def update_ranking(self, mol, max_tanimoto):
