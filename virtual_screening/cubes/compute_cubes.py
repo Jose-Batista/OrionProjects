@@ -2,6 +2,12 @@
 import json,requests
 import urllib.parse as parse
 
+import pandas as pd
+import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 from openeye import oechem
 from openeye import oegraphsim
 from openeye import oeomega
@@ -264,8 +270,8 @@ class ParallelInsertKnownActives(ParallelComputeCube):
         self.calculate_fp()
         self.insert_known_actives()
 
-        #self.success.emit((self.act_list, self.baitset, self.ranking))
-        self.success.emit(self.ranking)
+        self.success.emit((self.act_list, self.baitset, self.ranking))
+        #self.success.emit(self.ranking)
 
     def calculate_fp(self):
         
@@ -338,45 +344,62 @@ class AccumulateRankings(ComputeCube):
         self.ranking_list = list()
 
     def process(self, data, port):
-        self.ranking_list.append(data)
+        self.ranking_list.append(data[2])
+        self.nb_ka = len(data[0])-len(data[1])
 
     def end(self):
-        self.success.emit(self.ranking_list)
+        self.success.emit((self.ranking_list, self.nb_ka))
 
-class AnalyseRanking(ComputeCube):
+class AnalyseRankings(ComputeCube):
     """
 
     """
 
     classification = [["Compute", "Analysis"]]
 
+    fptype = parameter.IntegerParameter('fptype', default=105,
+                                    help_text="Fingerprint type to use for the ranking")
+
+    topn = parameter.IntegerParameter('topn', default=100,
+                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
+
     intake = ObjectInputPort('intake')
     success = ObjectOutputPort('success')
 
-    def process(self):
+    def process(self, data, port):
+        self.ranking_list = data[0]
+        self.nb_ka = data[1]
+        self.results_avg = self.ranking_analysis()
 
+        self.success.emit(self.results_avg)
 
-    def ranking_analysis(ranking_list, nb_ka, topn, FPType):
+    def ranking_analysis(self):
         results = pd.DataFrame()
-        for i, ranking in enumerate(ranking_list):
+        for i, ranking in enumerate(self.ranking_list):
             set_results = pd.DataFrame(columns = ['RR', 'HR', 'Set'])
             count = 0
             count_ka = 0
             for row, mol in enumerate(ranking):
                 count += 1
-                if mol[3] == 1:
+                if mol[4] == 1:
                     count_ka += 1
-                rr = 100 * count_ka/nb_ka
+                rr = 100 * count_ka/self.nb_ka
                 hr = 100 * count_ka/count
                 set_results.loc[row] = [rr, hr, i]
             results = pd.concat([results, set_results])
         
         results_avg = pd.DataFrame()
+
+        fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
+        FPType = fptypes[self.args.fptype]
+
         results_avg['Average RR ' + FPType] = results.groupby(results.index)['RR'].mean()
         results_avg['Average HR ' + FPType] = results.groupby(results.index)['HR'].mean()
-        results_avg = results_avg.head(topn)
+        results_avg = results_avg.head(self.args.topn)
 
         return results_avg
+
+
 class ParallelUpdateRanking(ParallelComputeCube):
     """
     A compute Cube that receives Molecules from the screening db with their Similarity value and rank them in the rnking list
