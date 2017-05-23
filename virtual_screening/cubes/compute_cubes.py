@@ -83,7 +83,7 @@ class CalculateFPCube(ComputeCube):
   #      for fp in self.fp_list:
         self.success.emit(self.fp_list)
 
-class PrepareSimCalc(ComputeCube):
+class PrepareRanking(ComputeCube):
 
     act_input = ObjectInputPort('act_input')
     baitset_input = ObjectInputPort('baitset_input')
@@ -105,7 +105,7 @@ class PrepareSimCalc(ComputeCube):
             while len(self.baitsets) > 0 :
                 self.success.emit((self.act_list, self.baitsets.pop(), self.ranking))
 
-class ParallelGetSimValCube(ParallelComputeCube):
+class ParallelRanking(ParallelComputeCube):
     """
     A compute Cube that receives a Molecule and a list of Fingerprints with a baitset of indices
     and returns the max Similarity value of the Molecule against the Fingerprints
@@ -119,19 +119,7 @@ class ParallelGetSimValCube(ParallelComputeCube):
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
 
-    data_in= parameter.DataSetInputParameter('data_in',
-                                    required=True,
-                                    title='Dataset to read from',
-                                    description='The dataset to read from')
-
-    download_format = parameter.StringParameter(
-        'download_format',
-        choices=('.oeb.gz', '.oeb', '.smi', '.pdb', '.mol2'),
-        required=False,
-        description='The stream format to be used for retrieving molecules from Orion',
-        default=".oeb.gz")
-
-    act_data_input = ObjectInputPort('act_data_input')
+    data_input = ObjectInputPort('data_input')
     success = ObjectOutputPort('success')
 
 
@@ -162,7 +150,7 @@ class ParallelGetSimValCube(ParallelComputeCube):
             cur_rank = list()
             for mol in hitlist:
                 cur_mol = mol.split(',')
-                cur_rank.append((cur_mol[0], cur_mol[1], float(cur_mol[5]), self.baitset[0]))
+                cur_rank.append((cur_mol[0], cur_mol[1], float(cur_mol[5]), self.baitset[0], False))
             if len(self.ranking) == 0:
                 self.ranking = cur_rank
             else:
@@ -179,9 +167,9 @@ class ParallelGetSimValCube(ParallelComputeCube):
         #            tanimoto = oegraphsim.OETanimoto(fp, self.fp_list[idx])
         #            if tanimoto > max_tanimoto:
         #                max_tanimoto = tanimoto
-        #        self.update_ranking(mol, max_tanimoto)
+        #        self.update_ranking(mol, max_tanimoto, False)
 
-        self.success.emit(self.ranking)
+        self.success.emit((self.act_list, self.baitset, self.ranking))
 
     def merge_ranking(self, ranking):
         merged_list = list()
@@ -227,7 +215,7 @@ class ParallelGetSimValCube(ParallelComputeCube):
 
         self.ranking = merged_list
 
-    def update_ranking(self, mol, max_tanimoto):
+    def update_ranking(self, mol, max_tanimoto, ka_tag):
         index = 0
         if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][2]:
             pass
@@ -240,7 +228,7 @@ class ParallelGetSimValCube(ParallelComputeCube):
 
             upper = self.ranking[:index]
             lower = self.ranking[index:]
-            self.ranking = upper + [(oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto, self.baitset[0])] + lower
+            self.ranking = upper + [(oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
 
             i = self.args.topn - 1
             while i < len(self.ranking) - 1:
@@ -251,7 +239,144 @@ class ParallelGetSimValCube(ParallelComputeCube):
                 else:
                     i += 1
 
+class ParallelInsertKnownActives(ParallelComputeCube):
+    """
+    """
 
+    classification = [["ParallelCompute"]]
+
+    fptype = parameter.IntegerParameter('fptype', default=105,
+                                    help_text="Fingerprint type to use for the ranking")
+
+    topn = parameter.IntegerParameter('topn', default=100,
+                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
+
+    data_input = ObjectInputPort('data_input')
+    success = ObjectOutputPort('success')
+
+    def process(self, data, port):
+        
+        self.act_list = data[0]
+        self.baitset = data[1]
+        self.ranking = data[2]
+        self.fp_list = list()
+
+        self.calculate_fp()
+        self.insert_known_actives()
+
+        #self.success.emit((self.act_list, self.baitset, self.ranking))
+        self.success.emit(self.ranking)
+
+    def calculate_fp(self):
+        
+        for mol in self.act_list:
+            fp = oegraphsim.OEFingerPrint()
+            oegraphsim.OEMakeFP(fp, mol, self.args.fptype)
+
+            self.fp_list.append(fp)
+
+    def insert_known_actives(self):
+
+        c = 0
+        for idx in self.baitset[1]:
+            while c < idx:
+                ka_fp = self.fp_list[c]
+                simval = self.calc_sim_val(ka_fp)
+                self.update_ranking(self.act_list[c], simval, True)
+
+                c += 1
+            c += 1
+        while c < len(self.act_list):
+            ka_fp = self.fp_list[c]
+            simval = self.calc_sim_val(ka_fp)
+            self.update_ranking(self.act_list[c], simval, True)
+            c += 1
+
+    def calc_sim_val(self, fp):
+        maxval = 0
+        for idx in self.baitset[1]:
+            tanimoto = oechem.OETanimoto(fp, self.fp_list[idx])
+            if tanimoto > maxval:
+                maxval = tanimoto
+        return maxval
+
+    def update_ranking(self, mol, max_tanimoto, ka_tag):
+        index = 0
+        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][2]:
+            pass
+        else:    
+            for top_mol in self.ranking:
+                if max_tanimoto < top_mol[2]:
+                    index = self.ranking.index(top_mol) + 1
+                else:
+                    break
+
+            upper = self.ranking[:index]
+            lower = self.ranking[index:]
+            self.ranking = upper + [(oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
+
+            i = self.args.topn - 1
+            while i < len(self.ranking) - 1:
+                if self.ranking[i][2] != self.ranking[i + 1][2]:
+                    self.ranking = self.ranking[:i + 1]
+
+                    break
+                else:
+                    i += 1
+
+class AccumulateRankings(ComputeCube):
+    """
+    A compute Cube that receives rankings and assemble them in a list
+    """
+
+    classification = [["Compute", "Accumulator"]]
+
+    intake = ObjectInputPort('intake')
+    success = ObjectOutputPort('success')
+
+    def begin(self):
+        self.ranking_list = list()
+
+    def process(self, data, port):
+        self.ranking_list.append(data)
+
+    def end(self):
+        self.success.emit(self.ranking_list)
+
+class AnalyseRanking(ComputeCube):
+    """
+
+    """
+
+    classification = [["Compute", "Analysis"]]
+
+    intake = ObjectInputPort('intake')
+    success = ObjectOutputPort('success')
+
+    def process(self):
+
+
+    def ranking_analysis(ranking_list, nb_ka, topn, FPType):
+        results = pd.DataFrame()
+        for i, ranking in enumerate(ranking_list):
+            set_results = pd.DataFrame(columns = ['RR', 'HR', 'Set'])
+            count = 0
+            count_ka = 0
+            for row, mol in enumerate(ranking):
+                count += 1
+                if mol[3] == 1:
+                    count_ka += 1
+                rr = 100 * count_ka/nb_ka
+                hr = 100 * count_ka/count
+                set_results.loc[row] = [rr, hr, i]
+            results = pd.concat([results, set_results])
+        
+        results_avg = pd.DataFrame()
+        results_avg['Average RR ' + FPType] = results.groupby(results.index)['RR'].mean()
+        results_avg['Average HR ' + FPType] = results.groupby(results.index)['HR'].mean()
+        results_avg = results_avg.head(topn)
+
+        return results_avg
 class ParallelUpdateRanking(ParallelComputeCube):
     """
     A compute Cube that receives Molecules from the screening db with their Similarity value and rank them in the rnking list

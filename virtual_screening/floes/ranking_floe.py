@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 from cubes.input_cubes import IndexInputCube, OEMolTriggeredIStreamCube
-from cubes.compute_cubes import (CalculateFPCube, ParallelCalculateFP, ConcatMolList, ParallelGetSimValCube, ParallelUpdateRanking, 
-                                PrepareSimCalc)
+from cubes.compute_cubes import (CalculateFPCube, ParallelCalculateFP, ConcatMolList, ParallelRanking, ParallelUpdateRanking, 
+                                PrepareRanking, ParallelInsertKnownActives)
 from cubes.output_cubes import TextOutputCube
 from floe.api import WorkFloe, CubeGroup
 from floe.api import OEMolOStreamCube
@@ -22,13 +22,14 @@ index_reader = IndexInputCube('index_reader')
 index_reader.promote_parameter('data_in', promoted_name='index_log')
 
 accu_act = ConcatMolList('accumulate actives')
-calc_fp = CalculateFPCube('calculate fingerprints')
+#calc_fp = CalculateFPCube('calculate fingerprints')
 
-prep_sim_calc = PrepareSimCalc('prepare similarity calculation')
-calc_sim = ParallelGetSimValCube('calculate similarity value')
-calc_sim.promote_parameter('data_in', promoted_name='screen_db')
+prep_sim_calc = PrepareRanking('prepare similarity calculation')
+calc_sim = ParallelRanking('calculate similarity value')
+#calc_sim.promote_parameter('data_in', promoted_name='screen_db')
 
-update_ranking = ParallelUpdateRanking('update ranking')
+insert_known_actives = ParallelInsertKnownActives('insert known actives')
+#update_ranking = ParallelUpdateRanking('update ranking')
 
 ofs = TextOutputCube('ofs')
 ofs.promote_parameter('name', promoted_name='ofs')
@@ -40,7 +41,7 @@ ofs.promote_parameter('name', promoted_name='ofs')
 #job.add_group(group)
 
 # Add Cubes to Floe
-job.add_cubes(act_reader, index_reader, accu_act, prep_sim_calc, calc_sim, ofs)
+job.add_cubes(act_reader, index_reader, accu_act, prep_sim_calc, calc_sim, insert_known_actives, ofs)
 
 # Connect ports
 act_reader.success.connect(accu_act.intake)
@@ -48,8 +49,9 @@ accu_act.success.connect(prep_sim_calc.act_input)
 #calc_fp.success.connect(prep_sim_calc.fp_input)
 index_reader.success.connect(prep_sim_calc.baitset_input)
 
-prep_sim_calc.success.connect(calc_sim.act_data_input)
-calc_sim.success.connect(ofs.intake)
+prep_sim_calc.success.connect(calc_sim.data_input)
+calc_sim.success.connect(insert_known_actives.data_input)
+insert_known_actives.success.connect(ofs.intake)
 
 #update_ranking.success.connect(ofs.intake)
 
