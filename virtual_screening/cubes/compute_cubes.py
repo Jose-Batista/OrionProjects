@@ -131,7 +131,6 @@ class ParallelGetSimValCube(ParallelComputeCube):
         description='The stream format to be used for retrieving molecules from Orion',
         default=".oeb.gz")
 
-    #intake = MoleculeInputPort('intake')
     act_data_input = ObjectInputPort('act_data_input')
     success = ObjectOutputPort('success')
 
@@ -144,18 +143,11 @@ class ParallelGetSimValCube(ParallelComputeCube):
         pass
 
     def process(self, data, port):
-       # if port == 'intake':
-       #     print('mol intake')
-       #     self.mol = 'test' #data.GetTitle()
-       #     self.fp = oegraphsim.OEFingerPrint()
-       #     oegraphsim.OEMakeFP(self.fp, data, self.args.fptype)
 
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
 
-        #response = requests.get( baseurl )
-        #data = response.json()
         baseurl = "http://10.0.1.22:8069"
         fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
         database = fptypes[self.args.fptype] + "_db"

@@ -34,10 +34,10 @@ ofs = TextOutputCube('ofs')
 ofs.promote_parameter('name', promoted_name='ofs')
 
 # Create Cube group
-group = CubeGroup(cubes=[prep_sim_calc, calc_sim])
+#group = CubeGroup(cubes=[prep_sim_calc, calc_sim])
 
 # Add Groups to Workfloe
-job.add_group(group)
+#job.add_group(group)
 
 # Add Cubes to Floe
 job.add_cubes(act_reader, index_reader, accu_act, prep_sim_calc, calc_sim, ofs)
