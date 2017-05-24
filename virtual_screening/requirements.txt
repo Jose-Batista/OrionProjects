@@ -1,0 +1,11 @@
+# SciPy Stack.  Order is important!
+numpy
+pandas
+matplotlib
+
+# OE Stack
+openeye-floe==0.2.157
+#openeye-aquifer
+
+# Others
+requests
