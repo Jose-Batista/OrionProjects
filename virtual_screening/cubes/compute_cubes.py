@@ -16,7 +16,7 @@ from openeye import oemolprop
 import time
 import random
 
-from vs_classes import VirtualScreeningData, ActiveList, ObjectInputPort, ObjectOutputPort
+from cubes.vs_classes import VirtualScreeningData, ActiveList, ObjectInputPort, ObjectOutputPort
 
 #from floe.api.parameter import (IntegerParameter, DataSetInputParameter, FileOutputParameter, FileInputParameter,
 #                                DataSetOutputParameter, BaseParameter, ParameterGroup,
@@ -50,6 +50,39 @@ class AccuMolList(ComputeCube):
     def end(self):
         self.success.emit(self.mol_list)
         
+class IndexGenerator(ComputeCube):
+    """
+
+    """
+
+    classification = [["Compute", "Index"]]
+
+    success = ObjectOutputPort('success')
+
+    def begin(self):
+        self.baitset = list()
+
+    def process(self, data, port):
+        total = 100
+        nb_index = 33 
+        iteration = 10
+        
+        for iter in range (iteration):
+            i = 0
+
+            index_set = set()
+            while i < nb_index :
+                index = random.randint(0, total - 1)
+                if index in index_set:
+                    continue
+                else : 
+                    index_set.add(index)
+                    self.baitset.append(index)
+                    i += 1
+
+            self.baitset.sort()
+            self.success.emit(iter, self.baitset)
+
 
 class CalculateFPCube(ComputeCube):
     """

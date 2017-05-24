@@ -9,7 +9,7 @@ from openeye import oechem
 from openeye import oeomega
 from openeye import oemolprop
 
-from vs_classes import VirtualScreeningData, ObjectInputPort
+from cubes.vs_classes import VirtualScreeningData, ObjectInputPort
 
 from floe.api.parameter import (IntegerParameter, DataSetInputParameter, FileOutputParameter, FileInputParameter,
                                 DataSetOutputParameter, BaseParameter, ParameterGroup,
@@ -123,3 +123,38 @@ class PlotResults(SinkCube):
         plt.savefig(path)
         
         plt.show()
+
+class IndexOutputCube(SinkCube):
+    """
+    A cube that outputs an Index log
+    """
+    intake = ObjectInputPort('intake')
+    name = FileOutputParameter('name',
+                               required=True,
+                               description='The name of the output file')
+    title = "Index log Writer"
+    classification = [["Output"]]
+
+    def begin(self):
+        self.in_orion = config_from_env() is not None
+        if self.in_orion:
+            self.stream = tempfile.NamedTemporaryFile()
+        else:
+            self.stream = open(self.args.name, 'w')
+
+    def write(self, data, port):
+        self.set_id = data[0]
+        self.baitset = data[1]
+        self.stream.write('Set n°' + str(self.set_id) + ': ')
+        for idx in self.baitset:
+            self.stream.write(str(idx))
+        self.stream.write('\n')
+
+    def end(self):
+        if self.in_orion:
+            self.stream.flush()
+            resp = upload_file(self.args.name, self.stream.name)
+            self.log.info("Created result file {} with ID {}".format(self.args.name, resp['id']))
+        else:
+            self.stream.close()
+

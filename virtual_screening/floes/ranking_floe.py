@@ -9,7 +9,7 @@ from floe.api import OEMolOStreamCube
 from floe.api import OEMolIStreamCube
 
 # Declare Floe, add metadata for UI
-job = WorkFloe('Read Text File')
+job = WorkFloe('VS Floe')
 job.description = """
 Read an index text file and write the indices in an other file
 """

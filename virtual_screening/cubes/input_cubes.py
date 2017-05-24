@@ -4,7 +4,7 @@ from openeye import oechem
 from openeye import oeomega
 from openeye import oemolprop
 
-from vs_classes import VirtualScreeningData, ObjectOutputPort, ObjectInputPort
+from cubes.vs_classes import VirtualScreeningData, ObjectOutputPort, ObjectInputPort
 
 from floe.api import (parameter, ParallelOEMolComputeCube, OEMolComputeCube, SourceCube, ComputeCube,
                       MoleculeOutputPort)
@@ -36,7 +36,11 @@ class IndexInputCube(SourceCube):
 
 
     def begin(self):
-        self.stream = open(str(self.args.data_in), 'r')
+        self.in_orion = config_from_env() is not None
+        if self.in_orion:
+            self.stream = stream_file(self.args.name)
+        else:
+            self.stream = open(str(self.args.data_in), 'r')
 
     def __iter__(self):
         max_idx = self.args.limit
@@ -55,7 +59,6 @@ class IndexInputCube(SourceCube):
             if max_idx is not None and count == max_idx:
                 break
             yield (set_id, baitset)
-
 
 class OEMolTriggeredIStreamCube(ComputeCube):
     """
