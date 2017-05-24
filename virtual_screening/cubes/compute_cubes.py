@@ -31,7 +31,7 @@ from floe.api import (parameter, ParallelOEMolComputeCube, OEMolComputeCube, Sou
                       MoleculeOutputPort)
 
 
-class ConcatMolList(ComputeCube):
+class AccuMolList(ComputeCube):
     """
     A compute Cube that gets Molecules and assemble them in a list
     """
@@ -43,11 +43,9 @@ class ConcatMolList(ComputeCube):
 
     def begin(self):
         self.mol_list = list()
-        pass
 
     def process(self, mol, port):
         self.mol_list.append(mol)
-        pass
 
     def end(self):
         self.success.emit(self.mol_list)
@@ -69,7 +67,6 @@ class CalculateFPCube(ComputeCube):
 
     def begin(self):
         self.fp_list = list()
-        pass
 
     def process(self, data, port):
         for mol in data:
@@ -83,7 +80,6 @@ class CalculateFPCube(ComputeCube):
 #                    bitstring += '0'
 
             self.fp_list.append(fp)
-            pass
 
     def end(self):
   #      for fp in self.fp_list:
@@ -141,7 +137,6 @@ class ParallelRanking(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
-
         baseurl = "http://10.0.1.22:8069"
         fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
         database = fptypes[self.args.fptype] + "_db"
@@ -330,6 +325,9 @@ class ParallelInsertKnownActives(ParallelComputeCube):
                 else:
                     i += 1
 
+    def end(self):
+        print('Parallel process ended')
+
 class AccumulateRankings(ComputeCube):
     """
     A compute Cube that receives rankings and assemble them in a list
@@ -345,9 +343,10 @@ class AccumulateRankings(ComputeCube):
 
     def process(self, data, port):
         self.ranking_list.append(data[2])
-        self.nb_ka = len(data[0])-len(data[1])
+        self.nb_ka = len(data[0])-len(data[1][1])
 
     def end(self):
+        print('Accumulator ended')
         self.success.emit((self.ranking_list, self.nb_ka))
 
 class AnalyseRankings(ComputeCube):
@@ -369,6 +368,7 @@ class AnalyseRankings(ComputeCube):
     def process(self, data, port):
         self.ranking_list = data[0]
         self.nb_ka = data[1]
+        print(str(self.nb_ka))
         self.results_avg = self.ranking_analysis()
 
         self.success.emit(self.results_avg)

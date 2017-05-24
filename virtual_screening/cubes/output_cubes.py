@@ -21,26 +21,69 @@ from floe.api.ports import (InputPort, OutputPort, Port, MoleculeInputPort,
 
 from floe.api import ( parameter, ParallelOEMolComputeCube, OEMolComputeCube, SinkCube)
 
-class TextOutputCube(SinkCube):
+class TextRankingOutputCube(SinkCube):
     """
     A cube that outputs text
     """
+
+    fptype = parameter.IntegerParameter('fptype', default=105,
+                                    help_text="Fingerprint type to use for the ranking")
+
     intake = ObjectInputPort('intake')
     name = FileOutputParameter('name',
                                required=True,
                                description='The name of the output file')
-    title = "File Writer"
+    title = "Ranking Writer"
     classification = [["Output"]]
 
     def begin(self):
-        self.stream = open(self.args.name, 'w')
+        fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
+        FPType = fptypes[self.args.fptype]
+
+        path = self.args.name + "ranking_ffp_" + FPType + ".txt"
+        self.stream = open(path, 'w')
 
     def write(self, data, port):
-        print(data)
-        self.stream.write('test')
+        self.ranking_list = data[0]
+
+        for i, ranking in enumerate(self.ranking_list):
+            self.stream.write("\n" + "Set n°" + str(ranking[0][3]) + "\n")
+            for mol in ranking:
+                mol_data = str(mol[3]) + " " + mol[1] + " " + str(mol[2]) + " " + str(mol[4]) +  "\n"
+                self.stream.write(mol_data)
 
     def end(self):
         self.stream.close()
+
+class ResultsOutputCube(SinkCube):
+    """
+    A cube that outputs Results dataframe in a csv file
+    """
+
+    fptype = parameter.IntegerParameter('fptype', default=105,
+                                    help_text="Fingerprint type to use for the ranking")
+
+    intake = ObjectInputPort('intake')
+    name = FileOutputParameter('name',
+                               required=True,
+                               description='The name of the output file')
+    title = "Results Writer"
+    classification = [["Output"]]
+
+    def begin(self):
+        pass
+
+    def write(self, data, port):
+        self.results_avg = data
+
+        fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
+        FPType = fptypes[self.args.fptype]
+
+        path = self.args.name + "results_ffp_" + FPType + ".csv"
+        self.results_avg.to_csv(path)
+
+    def end(self):
+        pass
 
 class PlotResults(SinkCube):
     """
