@@ -11,6 +11,7 @@ from openeye import oemolprop
 
 from cubes.vs_classes import VirtualScreeningData, ObjectInputPort
 
+from floe.api.orion import config_from_env 
 from floe.api.parameter import (IntegerParameter, DataSetInputParameter, FileOutputParameter, FileInputParameter,
                                 DataSetOutputParameter, BaseParameter, ParameterGroup,
                                 DecimalParameter, StringParameter)
@@ -133,6 +134,7 @@ class IndexOutputCube(SinkCube):
                                required=True,
                                description='The name of the output file')
     title = "Index log Writer"
+    tags = 'IndexOutputCube_tags' 
     classification = [["Output"]]
 
     def begin(self):

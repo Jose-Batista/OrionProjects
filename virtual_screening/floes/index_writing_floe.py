@@ -9,13 +9,16 @@ from floe.api import OEMolIStreamCube
 
 # Declare Floe, add metadata for UI
 job = WorkFloe('Demoxxx')
+job.classification=[['blah']]
+job.tags=[['funky cold medina'],]
+job.title='mytitle'
 job.description = """
 Read an index text file and write the indices in an other file
 """
-input_cube = OEMolOStreamCube('mol_input')
+input_cube = OEMolIStreamCube('mol_input')
 index_generator = IndexGenerator('index generator')
 index_output = IndexOutputCube('index output')
-index_output.promote_parameter('data_in', promoted_name='index_file')
+index_output.promote_parameter('name', promoted_name='index_file')
 
 job.add_cubes(input_cube, index_generator, index_output)
 

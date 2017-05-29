@@ -57,8 +57,10 @@ class IndexGenerator(ComputeCube):
 
     classification = [["Compute", "Index"]]
 
+    intake = MoleculeInputPort('intake')
     success = ObjectOutputPort('success')
-
+    tags =[['IndexGenerator_tags']]
+    title = 'IndexGenerator_Title' 
     def begin(self):
         self.baitset = list()
 
@@ -67,7 +69,7 @@ class IndexGenerator(ComputeCube):
         nb_index = 33 
         iteration = 10
         
-        for iter in range (iteration):
+        for idx in range (iteration):
             i = 0
 
             index_set = set()
@@ -81,7 +83,7 @@ class IndexGenerator(ComputeCube):
                     i += 1
 
             self.baitset.sort()
-            self.success.emit(iter, self.baitset)
+            self.success.emit((idx, self.baitset))
 
 
 class CalculateFPCube(ComputeCube):

@@ -1,7 +1,7 @@
 # SciPy Stack.  Order is important!
+matplotlib
 numpy
 pandas
-matplotlib
 
 # OE Stack
 openeye-floe==0.2.157
