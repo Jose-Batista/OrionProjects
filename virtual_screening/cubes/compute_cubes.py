@@ -57,19 +57,24 @@ class IndexGenerator(ComputeCube):
 
     classification = [["Compute", "Index"]]
 
-    intake = MoleculeInputPort('intake')
+    intake = ObjectInputPort('intake')
     success = ObjectOutputPort('success')
     tags =[['IndexGenerator_tags']]
     title = 'IndexGenerator_Title' 
+
     def begin(self):
-        self.baitset = list()
+        self.log.info("Generator Cube runnig")
 
     def process(self, data, port):
+        pass
+
+    def end(self):
         total = 100
         nb_index = 33 
         iteration = 10
         
         for idx in range (iteration):
+            self.baitset = list()
             i = 0
 
             index_set = set()
@@ -172,7 +177,7 @@ class ParallelRanking(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
-        baseurl = "http://10.0.1.22:8069"
+        baseurl = "http://130.180.63.34:8069"
         fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
         database = fptypes[self.args.fptype] + "_db"
         for idx in self.baitset[1]:

@@ -6,6 +6,8 @@ from openeye import oemolprop
 
 from cubes.vs_classes import VirtualScreeningData, ObjectOutputPort, ObjectInputPort
 
+import tempfile
+from floe.api.orion import config_from_env, upload_file, stream_file
 from floe.api import (parameter, ParallelOEMolComputeCube, OEMolComputeCube, SourceCube, ComputeCube,
                       MoleculeOutputPort)
 
@@ -36,11 +38,13 @@ class IndexInputCube(SourceCube):
 
 
     def begin(self):
+        print('--------------------------- Starting index reading')
         self.in_orion = config_from_env() is not None
         if self.in_orion:
-            self.stream = stream_file(self.args.name)
+            #self.stream = stream_file(988)
+            self.stream = stream_file(self.args.data_in)
         else:
-            self.stream = open(str(self.args.data_in), 'r')
+            self.stream = open(str(self.args.data_in), 'rb')
 
     def __iter__(self):
         max_idx = self.args.limit
@@ -48,17 +52,23 @@ class IndexInputCube(SourceCube):
             max_idx = int(max_idx)
         count = 0
 
-        for line in self.stream:
-            baitset = line
-            baitset = baitset.split(" ")
-            set_id = baitset[1][-2:-1]
-            baitset = baitset[2:-1]
-            for i, idx in enumerate(baitset):
-                baitset[i] = int(idx)
-            count += 1
-            if max_idx is not None and count == max_idx:
-                break
-            yield (set_id, baitset)
+        for chunk in self.stream:
+            index_log = chunk
+            self.log.info("Whole Chunk: \n", chunk)
+            index_log = index_log.decode('utf-8')
+            lines = index_log.split("set")
+            for baitset in lines:
+                baitset = baitset.split(" ")
+                set_id = baitset[0][-2:-1]
+                baitset = baitset[1:-1]
+                self.log.info(baitset)
+                for i, idx in enumerate(baitset):
+                    if idx.isdigit():
+                        baitset[i] = int(idx)
+                count += 1
+                if max_idx is not None and count == max_idx:
+                    break
+                yield (set_id, baitset)
 
 class OEMolTriggeredIStreamCube(ComputeCube):
     """

@@ -2,7 +2,7 @@
 
 from cubes.input_cubes import IndexInputCube, OEMolTriggeredIStreamCube
 from cubes.compute_cubes import (CalculateFPCube, ParallelCalculateFP, AccuMolList, ParallelRanking, ParallelUpdateRanking, 
-                                PrepareRanking, ParallelInsertKnownActives, AccumulateRankings, AnalyseRankings)
+                                PrepareRanking, ParallelInsertKnownActives, AccumulateRankings, AnalyseRankings, IndexGenerator)
 from cubes.output_cubes import TextRankingOutputCube, PlotResults, ResultsOutputCube
 from floe.api import WorkFloe, CubeGroup
 from floe.api import OEMolOStreamCube
@@ -18,9 +18,10 @@ job.classification = [["Virtual Screening", "Create Ranking"]]
 # Declare Cubes
 act_reader = OEMolIStreamCube('act_reader')
 act_reader.promote_parameter('data_in', promoted_name='act_db')
-index_reader = IndexInputCube('index_reader')
-index_reader.promote_parameter('data_in', promoted_name='index_log')
+#index_reader = IndexInputCube('index_reader')
+#index_reader.promote_parameter('data_in', promoted_name='index_log')
 
+index_generator = IndexGenerator('index generator')
 accu_act = AccuMolList('accumulate actives')
 #calc_fp = CalculateFPCube('calculate fingerprints')
 
@@ -57,14 +58,15 @@ plot_results.promote_parameter('fptype', promoted_name='fptype')
 #job.add_group(group)
 
 # Add Cubes to Floe
-job.add_cubes(act_reader, index_reader, accu_act, prep_sim_calc, calc_sim, insert_known_actives, 
+job.add_cubes(act_reader, index_generator, accu_act, prep_sim_calc, calc_sim, insert_known_actives, 
               accu_rankings, analyse_rankings, results_output, plot_results, write_ranking)
 
 # Connect ports
 act_reader.success.connect(accu_act.intake)
 accu_act.success.connect(prep_sim_calc.act_input)
+accu_act.success.connect(index_generator.intake)
 #calc_fp.success.connect(prep_sim_calc.fp_input)
-index_reader.success.connect(prep_sim_calc.baitset_input)
+index_generator.success.connect(prep_sim_calc.baitset_input)
 
 prep_sim_calc.success.connect(calc_sim.data_input)
 calc_sim.success.connect(insert_known_actives.data_input)

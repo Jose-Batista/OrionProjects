@@ -11,7 +11,8 @@ from openeye import oemolprop
 
 from cubes.vs_classes import VirtualScreeningData, ObjectInputPort
 
-from floe.api.orion import config_from_env 
+import tempfile
+from floe.api.orion import config_from_env, upload_file, stream_file
 from floe.api.parameter import (IntegerParameter, DataSetInputParameter, FileOutputParameter, FileInputParameter,
                                 DataSetOutputParameter, BaseParameter, ParameterGroup,
                                 DecimalParameter, StringParameter)
@@ -122,8 +123,8 @@ class PlotResults(SinkCube):
         plt.title("Average HR Rates FP" + FPType)
         path = self.args.name + "Average_ffp_HR_plot_" + FPType + ".svg"
         plt.savefig(path)
-        
-        plt.show()
+ 
+        #plt.show()
 
 class IndexOutputCube(SinkCube):
     """
@@ -138,19 +139,24 @@ class IndexOutputCube(SinkCube):
     classification = [["Output"]]
 
     def begin(self):
+        self.log.info("OutputCube")
         self.in_orion = config_from_env() is not None
         if self.in_orion:
             self.stream = tempfile.NamedTemporaryFile()
         else:
-            self.stream = open(self.args.name, 'w')
+            self.stream = open(self.args.name, 'wb')
 
     def write(self, data, port):
         self.set_id = data[0]
         self.baitset = data[1]
-        self.stream.write('Set n°' + str(self.set_id) + ': ')
+        text = 'Set n°' + str(self.set_id) + ': '
+        text = text.encode('utf-8')
+        self.stream.write(text)
         for idx in self.baitset:
-            self.stream.write(str(idx))
-        self.stream.write('\n')
+            text = str(idx) + ' '
+            text = text.encode('utf-8')
+            self.stream.write(text)
+        self.stream.write(b'\n')
 
     def end(self):
         if self.in_orion:
