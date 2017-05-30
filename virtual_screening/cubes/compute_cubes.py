@@ -510,3 +510,38 @@ class ParallelCalculateFP(ParallelOEMolComputeCube):
 
     def end(self):
         pass
+
+class CreateTestData(ComputeCube):
+    """
+    Test Cube to delete
+    """
+
+    classification = [["Compute", "Test"]]
+
+    fptype = parameter.IntegerParameter('fptype', default=105,
+                                    help_text="Fingerprint type to use for the ranking")
+
+    topn = parameter.IntegerParameter('topn', default=100,
+                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
+
+    intake = ObjectInputPort('intake')
+    success = ObjectOutputPort('success')
+
+    def begin(self):
+
+        fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
+        FPType = fptypes[self.args.fptype]
+
+        self.dataframe = pd.DataFrame(columns = ['Average RR ' + FPType, 'Average HR ' + FPType ])
+
+    def process(self, data, port):
+        self.set_id = data[0]
+        self.baitset = data[1]
+        for idx in self.baitset:
+            self.dataframe.loc[len(self.dataframe)] = [idx, self.set_id]
+
+    def end(self):
+        self.success.emit(self.dataframe)
+
+
+

@@ -38,7 +38,6 @@ class IndexInputCube(SourceCube):
 
 
     def begin(self):
-        print('--------------------------- Starting index reading')
         self.in_orion = config_from_env() is not None
         if self.in_orion:
             #self.stream = stream_file(988)
@@ -53,15 +52,15 @@ class IndexInputCube(SourceCube):
         count = 0
 
         for chunk in self.stream:
-            index_log = chunk
-            self.log.info("Whole Chunk: \n", chunk)
-            index_log = index_log.decode('utf-8')
-            lines = index_log.split("set")
+
+            index_log = chunk.decode('utf-8')
+            lines = index_log.split("set ")
+            lines = lines[1:]
             for baitset in lines:
                 baitset = baitset.split(" ")
                 set_id = baitset[0][-2:-1]
+                set_id = int(set_id)
                 baitset = baitset[1:-1]
-                self.log.info(baitset)
                 for i, idx in enumerate(baitset):
                     if idx.isdigit():
                         baitset[i] = int(idx)
@@ -69,6 +68,7 @@ class IndexInputCube(SourceCube):
                 if max_idx is not None and count == max_idx:
                     break
                 yield (set_id, baitset)
+
 
 class OEMolTriggeredIStreamCube(ComputeCube):
     """
