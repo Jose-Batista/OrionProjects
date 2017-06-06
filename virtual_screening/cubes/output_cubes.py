@@ -209,3 +209,33 @@ class IndexOutputCube(SinkCube):
         else:
             self.stream.close()
 
+class TextOutputCube(SinkCube):
+    """
+    A cube that outputs text
+    """
+    intake = BinaryInputPort('intake')
+    name = FileOutputParameter('name',
+                               required=True,
+                               description='The name of the output file')
+    title = "Text File Writer"
+    classification = [["Output"]]
+
+    def begin(self):
+        self.in_orion = config_from_env() is not None
+        if self.in_orion:
+            self.stream = tempfile.NamedTemporaryFile()
+        else:
+            self.stream = open(self.args.name, 'w')
+
+    def write(self, data, port):
+        data.decode('utf-8')
+        self.stream.write(data)
+
+    def end(self):
+        if self.in_orion:
+            self.stream.flush()
+            resp = upload_file(self.args.name, self.stream.name)
+            self.log.info("Created result file {} with ID {}".format(self.args.name, resp['id']))
+        else:
+            self.stream.close()
+

@@ -4,6 +4,8 @@ import sys, os
 import json,requests
 import urllib.parse as parse
 
+import tempfile
+
 import time
 import random
 
@@ -584,13 +586,15 @@ class ShapeDatabaseClient(ComputeCube):
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
 
     intake = MoleculeInputPort('intake')
-    success = BinaryOutputPort('success')
+    success = MoleculeOutputPort('success')
 
     def process(self, data, port):
         s = ServerProxy("http://" + self.args.url)
-        data = Binary(data)
 
-        idx = s.SubmitQuery(data, self.args.topn)
+        query = oechem.OEWriteMolToBytes('.oeb', data)
+        query = Binary(query)
+
+        idx = s.SubmitQuery(query, self.args.topn, '.oeb', '.oeb')
 
         while True:
             blocking = True
@@ -609,12 +613,129 @@ class ShapeDatabaseClient(ComputeCube):
                 break
         
         results = s.QueryResults(idx)
-        self.success.emit(results)
 
-    def GetFormatExtension(fname):
-        base, ext = os.path.splitext(fname.lower())
-        if ext == ".gz":
-            base, ext = os.path.splitext(base)
-            ext += ".gz"
-        return ext
+        with tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False) as temp:
+            temp.write(results.data)
+            temp.flush()
+            with oechem.oemolistream(temp.name) as ifs:
+                for mol in ifs.GetOEMols():
+                    self.success.emit(mol)
+
+       # url ='http://' + self.args.url + '/queries/{:d}/'.format(idx)
+
+       # response = requests.get(url)
+       # print(response)
+        #data = response.json()
+        #print(data)
+
+
+class ParallelFastROCSRanking(ParallelComputeCube):
+    """
+    A compute Cube that receives a Molecule a baitset of indices and a FastROCSServer address
+    and returns the ranking of the Server Molecules against the query
+    """
+
+    classification = [["Compute", "FastROCS", "Similarity"]]
+
+    url = parameter.StringParameter('url', default="130.180.63.34:8081", help_text="Url of the FastROCS Server for the request")
+
+    topn = parameter.IntegerParameter('topn', default=100,
+                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
+
+    data_input = ObjectInputPort('data_input')
+    success = ObjectOutputPort('success')
+
+    def begin(self):
+        pass
+
+    def process(self, data, port):
+
+        self.act_list = data[0]
+        self.baitset = data[1]
+        self.ranking = data[2]
+
+        s = ServerProxy("http://" + self.args.url)
+
+        for idx in self.baitset[1]:
+            query = oechem.OEWriteMolToBytes('.oeb', self.act_list[idx])
+            query = Binary(query)
+
+            idx = s.SubmitQuery(query, self.args.topn, '.oeb', '.oeb')
+
+            while True:
+                blocking = True
+                try:
+                    current, total = s.QueryStatus(idx, blocking)
+                except Fault as e:
+                    print(str(e), file=sys.stderr)
+                    return 1
+                
+                if total == 0:
+                    continue
+
+                print("%i/%i" % (current, total))
+                
+                if total <= current:
+                    break
+            
+            results = s.QueryResults(idx)
+
+            cur_rank = list()
+            with tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False) as temp:
+                temp.write(results.data)
+                temp.flush()
+                with oechem.oemolistream(temp.name) as ifs:
+                    for mol in ifs.GetOEMols():
+                        cur_rank.append((oechem.OEMolToSmiles(mol), mol.GetTitle(), float(OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
+
+            if len(self.ranking) == 0:
+                self.ranking = cur_rank
+            else:
+                self.merge_ranking(cur_rank)
+
+        self.success.emit((self.act_list, self.baitset, self.ranking))
+
+    def merge_ranking(self, ranking):
+        merged_list = list()
+        i = 0
+        j = 0
+        count = 0
+        id_set = set()
+        while i < len(self.ranking):
+            while j < len(ranking) and ranking[j][2] > self.ranking[i][2]:
+                if ranking[j][1] not in id_set: 
+                    if count < self.args.topn or ranking[j][2] == merged_list[count-1][2]:
+                        merged_list.append(ranking[j])
+                        count += 1
+                        id_set.add(ranking[j][1])
+                        j += 1
+                    else:
+                        break
+                else:
+                    j += 1
+
+            if self.ranking[i][1] not in id_set: 
+                if self.ranking[i] not in id_set and (count < self.args.topn or self.ranking[i][2] == merged_list[count-1][2]):
+                    merged_list.append(self.ranking[i])  
+                    count += 1
+                    id_set.add(self.ranking[i][1])
+                    i += 1
+                else:
+                    break
+            else:
+                i += 1
+
+        while j < len(ranking):
+            if ranking[j][1] not in id_set: 
+                if ranking[j] not in id_set and (count < self.args.topn or ranking[j][2] == merged_list[count-1][2]):
+                    merged_list.append(ranking[j])
+                    count += 1
+                    id_set.add(ranking[j][1])
+                    j += 1
+                else:
+                    break
+            else:
+                j += 1
+
+        self.ranking = merged_list
 
