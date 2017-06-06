@@ -1,6 +1,11 @@
 
+from __future__ import print_function
+import sys, os
 import json,requests
 import urllib.parse as parse
+
+import time
+import random
 
 import pandas as pd
 import numpy as np
@@ -13,8 +18,10 @@ from openeye import oegraphsim
 from openeye import oeomega
 from openeye import oemolprop
 
-import time
-import random
+try:
+    from xmlrpclib import ServerProxy, Binary, Fault
+except ImportError: # python 3
+    from xmlrpc.client import ServerProxy, Binary, Fault
 
 from cubes.vs_classes import VirtualScreeningData, ActiveList, ObjectInputPort, ObjectOutputPort
 
@@ -543,5 +550,71 @@ class CreateTestData(ComputeCube):
     def end(self):
         self.success.emit(self.dataframe)
 
+class PingServer(ComputeCube):
+    """
+    Test Cube to ping a server
+    """
 
+    classification = [["Test", "Server"]]
+
+    url = parameter.StringParameter('url', default="10.0.49.140", help_text="Url to be ping")
+
+    intake = ObjectInputPort('intake')
+
+    def process(self, data, port):
+        hostname = self.args.url 
+        self.log.info("pinging server " + self.args.url)
+        response = os.system("ping -c 1 " + hostname)
+
+        if response == 0:
+            self.log.info( hostname + 'is up!')
+        else:
+            self.log.info("can't reach server : Error id " + str(response))
+
+class ShapeDatabaseClient(ComputeCube):
+    """
+    Test Cube to ping a server
+    """
+
+    classification = [["Test", "Server"]]
+
+    url = parameter.StringParameter('url', default="130.180.63.34:8081", help_text="Url of the FastROCS Server for the request")
+
+    topn = parameter.IntegerParameter('topn', default=100,
+                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
+
+    intake = MoleculeInputPort('intake')
+    success = BinaryOutputPort('success')
+
+    def process(self, data, port):
+        s = ServerProxy("http://" + self.args.url)
+        data = Binary(data)
+
+        idx = s.SubmitQuery(data, self.args.topn)
+
+        while True:
+            blocking = True
+            try:
+                current, total = s.QueryStatus(idx, blocking)
+            except Fault as e:
+                print(str(e), file=sys.stderr)
+                return 1
+            
+            if total == 0:
+                continue
+
+            print("%i/%i" % (current, total))
+            
+            if total <= current:
+                break
+        
+        results = s.QueryResults(idx)
+        self.success.emit(results)
+
+    def GetFormatExtension(fname):
+        base, ext = os.path.splitext(fname.lower())
+        if ext == ".gz":
+            base, ext = os.path.splitext(base)
+            ext += ".gz"
+        return ext
 
