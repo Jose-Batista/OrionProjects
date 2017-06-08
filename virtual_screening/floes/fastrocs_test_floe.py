@@ -18,9 +18,9 @@ Read a molecule query and return the FastROCS Server Results
 """
 input_cube = OEMolIStreamCube('mol_input')
 
-request_cube = ShapeDatabaseClient('request cube')
+request_cube = ShapeDatabaseClient('request_cube')
 
-output_cube = OEMolOStreamCube('results output')
+output_cube = OEMolOStreamCube('results_output')
 output_cube.promote_parameter('data_out', promoted_name='output')
 
 job.add_cubes(input_cube, request_cube, output_cube)

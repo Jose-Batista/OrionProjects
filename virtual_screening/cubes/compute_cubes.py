@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 
 from openeye import oechem
 from openeye import oegraphsim
+from openeye import oeshape
 from openeye import oeomega
 from openeye import oemolprop
 
@@ -417,7 +418,6 @@ class AnalyseRankings(ComputeCube):
     def process(self, data, port):
         self.ranking_list = data[0]
         self.nb_ka = data[1]
-        print(str(self.nb_ka))
         self.results_avg = self.ranking_analysis()
 
         self.success.emit(self.results_avg)
@@ -580,7 +580,7 @@ class ShapeDatabaseClient(ComputeCube):
 
     classification = [["Test", "Server"]]
 
-    url = parameter.StringParameter('url', default="130.180.63.34:8081", help_text="Url of the FastROCS Server for the request")
+    url = parameter.StringParameter('url', default="52.207.211.90:4711", help_text="Url of the FastROCS Server for the request")
 
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
@@ -637,7 +637,7 @@ class ParallelFastROCSRanking(ParallelComputeCube):
 
     classification = [["Compute", "FastROCS", "Similarity"]]
 
-    url = parameter.StringParameter('url', default="130.180.63.34:8081", help_text="Url of the FastROCS Server for the request")
+    url = parameter.StringParameter('url', default="52.207.211.90:4711", help_text="Url of the FastROCS Server for the request")
 
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
@@ -673,7 +673,7 @@ class ParallelFastROCSRanking(ParallelComputeCube):
                 if total == 0:
                     continue
 
-                print("%i/%i" % (current, total))
+                #print("%i/%i" % (current, total))
                 
                 if total <= current:
                     break
@@ -685,8 +685,8 @@ class ParallelFastROCSRanking(ParallelComputeCube):
                 temp.write(results.data)
                 temp.flush()
                 with oechem.oemolistream(temp.name) as ifs:
-                    for mol in ifs.GetOEMols():
-                        cur_rank.append((oechem.OEMolToSmiles(mol), mol.GetTitle(), float(OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
+                    for mol in ifs.GetOEGraphMols():
+                        cur_rank.append((oechem.OEMolToSmiles(mol), mol.GetTitle(), float(oechem.OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
 
             if len(self.ranking) == 0:
                 self.ranking = cur_rank
@@ -738,4 +738,91 @@ class ParallelFastROCSRanking(ParallelComputeCube):
                 j += 1
 
         self.ranking = merged_list
+
+class ParallelROCSInsertKnownActives(ParallelComputeCube):
+    """
+    """
+
+    classification = [["ParallelCompute"]]
+
+    topn = parameter.IntegerParameter('topn', default=100,
+                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
+
+    data_input = ObjectInputPort('data_input')
+    success = ObjectOutputPort('success')
+
+    def process(self, data, port):
+        
+        self.act_list = data[0]
+        self.baitset = data[1]
+        self.ranking = data[2]
+
+        self.insert_known_actives()
+
+        self.success.emit((self.act_list, self.baitset, self.ranking))
+
+    def insert_known_actives(self):
+
+        c = 0
+        print("KA for baitset : ", self.baitset[0])
+        for idx in self.baitset[1]:
+            while c < idx:
+                act_mol = self.act_list[c]
+                simval = self.calc_sim_val(act_mol)
+                print("KA TanimotoCombo : ", simval)
+                self.update_ranking(act_mol, simval, True)
+
+                c += 1
+            c += 1
+        while c < len(self.act_list):
+            act_mol = self.act_list[c]
+            simval = self.calc_sim_val(act_mol)
+            print("KA TanimotoCombo : ", simval)
+            self.update_ranking(act_mol, simval, True)
+            c += 1
+
+    def calc_sim_val(self, refmol):
+        best = oeshape.OEBestOverlay()
+        best.SetRefMol(refmol)
+        best.SetColorForceField(oeshape.OEColorFFType_ImplicitMillsDean)
+        best.SetColorOptimize(True)
+
+        maxval = 0
+        for idx in self.baitset[1]:
+            scoreiter = oeshape.OEBestOverlayScoreIter()
+            oeshape.OESortOverlayScores(scoreiter, best.Overlay(self.act_list[idx]), oeshape.OEHighestTanimotoCombo())
+        
+            for score in scoreiter:
+                if score.GetTanimotoCombo() > maxval:
+                    maxval = score.GetTanimotoCombo() 
+                break
+
+        return maxval
+
+    def update_ranking(self, mol, max_tanimoto, ka_tag):
+        index = 0
+        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][2]:
+            pass
+        else:    
+            for top_mol in self.ranking:
+                if max_tanimoto < top_mol[2]:
+                    index = self.ranking.index(top_mol) + 1
+                else:
+                    break
+
+            upper = self.ranking[:index]
+            lower = self.ranking[index:]
+            self.ranking = upper + [(oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
+
+            i = self.args.topn - 1
+            while i < len(self.ranking) - 1:
+                if self.ranking[i][2] != self.ranking[i + 1][2]:
+                    self.ranking = self.ranking[:i + 1]
+
+                    break
+                else:
+                    i += 1
+
+    def end(self):
+        print('Parallel process ended')
 
