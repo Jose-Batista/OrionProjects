@@ -637,7 +637,7 @@ class ParallelFastROCSRanking(ParallelComputeCube):
 
     classification = [["Compute", "FastROCS", "Similarity"]]
 
-    url = parameter.StringParameter('url', default="52.207.211.90:4711", help_text="Url of the FastROCS Server for the request")
+    url = parameter.StringParameter('url', default="130.180.63.34:8081", help_text="Url of the FastROCS Server for the request")
 
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
@@ -654,8 +654,10 @@ class ParallelFastROCSRanking(ParallelComputeCube):
         self.baitset = data[1]
         self.ranking = data[2]
 
+        self.log.info("start ranking baitset number " + str(self.baitset[0]))
         s = ServerProxy("http://" + self.args.url)
 
+        count = 0
         for idx in self.baitset[1]:
             query = oechem.OEWriteMolToBytes('.oeb', self.act_list[idx])
             query = Binary(query)
@@ -692,7 +694,10 @@ class ParallelFastROCSRanking(ParallelComputeCube):
                 self.ranking = cur_rank
             else:
                 self.merge_ranking(cur_rank)
+            count += 1
+            self.log.info("Baitset " + str(self.baitset[0]) + " : " + str(count) +" requests processed")
 
+        self.log.info("Emitting ranking baitset " + str(self.baitset[0]))
         self.success.emit((self.act_list, self.baitset, self.ranking))
 
     def merge_ranking(self, ranking):
