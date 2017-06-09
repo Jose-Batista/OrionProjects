@@ -769,9 +769,9 @@ class ParallelROCSInsertKnownActives(ParallelComputeCube):
 
         self.success.emit((self.act_list, self.baitset, self.ranking))
 
-    def create_shapedb():
-        dbtype = OEShapeDatabaseType_Default
-        self.shapedb = OEShapeDatabase(dbtype)
+    def create_shapedb(self):
+        dbtype = oefastrocs.OEShapeDatabaseType_Default
+        self.shapedb = oefastrocs.OEShapeDatabase(dbtype)
         for mol in self.act_list:
            self.shapedb.AddMol(mol) 
 
