@@ -40,14 +40,14 @@ class TextRankingOutputCube(SinkCube):
 
     def begin(self):
         fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
-        FPType = fptypes[self.args.fptype]
+        self.FPType = fptypes[self.args.fptype]
 
         self.in_orion = config_from_env() is not None
         if self.in_orion:
             self.stream = tempfile.NamedTemporaryFile()
         else:
-            path = self.args.name + "ranking_fp_" + FPType + ".txt"
-            self.stream = open(self.args.name, 'wb')
+            path = self.args.name + "ranking_fp_" + self.FPType + ".txt"
+            self.stream = open(path, 'wb')
 
 
     def write(self, data, port):
@@ -65,7 +65,8 @@ class TextRankingOutputCube(SinkCube):
     def end(self):
         if self.in_orion:
             self.stream.flush()
-            resp = upload_file(self.args.name, self.stream.name)
+            name = self.args.name + "ranking_fp_" + self.FPType + ".txt"
+            resp = upload_file(name, self.stream.name)
             self.log.info("Created result file {} with ID {}".format(self.args.name, resp['id']))
         else:
             self.stream.close()

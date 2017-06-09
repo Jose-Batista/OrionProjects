@@ -20,6 +20,7 @@ from openeye import oegraphsim
 from openeye import oeshape
 from openeye import oeomega
 from openeye import oemolprop
+from openeye import oefastrocs 
 
 try:
     from xmlrpclib import ServerProxy, Binary, Fault
@@ -316,7 +317,6 @@ class ParallelInsertKnownActives(ParallelComputeCube):
         self.insert_known_actives()
 
         self.success.emit((self.act_list, self.baitset, self.ranking))
-        #self.success.emit(self.ranking)
 
     def calculate_fp(self):
         
@@ -758,49 +758,69 @@ class ParallelROCSInsertKnownActives(ParallelComputeCube):
 
     def process(self, data, port):
         
+        self.log.info("processing...")
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
+        self.log.info("processing KA for baitset : " + str(self.baitset[0]))
 
+        self.create_shapedb()
         self.insert_known_actives()
 
         self.success.emit((self.act_list, self.baitset, self.ranking))
 
+    def create_shapedb():
+        dbtype = OEShapeDatabaseType_Default
+        self.shapedb = OEShapeDatabase(dbtype)
+        for mol in self.act_list:
+           self.shapedb.AddMol(mol) 
+
     def insert_known_actives(self):
 
         c = 0
-        print("KA for baitset : ", self.baitset[0])
+        self.log.info("KA for baitset : " + str(self.baitset[0]))
         for idx in self.baitset[1]:
             while c < idx:
                 act_mol = self.act_list[c]
                 simval = self.calc_sim_val(act_mol)
-                print("KA TanimotoCombo : ", simval)
-                self.update_ranking(act_mol, simval, True)
+                self.log.info(str(self.baitset[0]) + " : KA TanimotoCombo : " + str(simval))
+                #self.update_ranking(act_mol, simval, True)
 
                 c += 1
             c += 1
         while c < len(self.act_list):
             act_mol = self.act_list[c]
             simval = self.calc_sim_val(act_mol)
-            print("KA TanimotoCombo : ", simval)
-            self.update_ranking(act_mol, simval, True)
+            self.log.info(str(self.baitset[0]) + " : KA TanimotoCombo : " + str(simval))
+            #self.update_ranking(act_mol, simval, True)
             c += 1
 
     def calc_sim_val(self, refmol):
-        best = oeshape.OEBestOverlay()
-        best.SetRefMol(refmol)
-        best.SetColorForceField(oeshape.OEColorFFType_ImplicitMillsDean)
-        best.SetColorOptimize(True)
-
-        maxval = 0
-        for idx in self.baitset[1]:
-            scoreiter = oeshape.OEBestOverlayScoreIter()
-            oeshape.OESortOverlayScores(scoreiter, best.Overlay(self.act_list[idx]), oeshape.OEHighestTanimotoCombo())
+        scores = self.shapedb.GetSortedScores(refmol, options)
         
-            for score in scoreiter:
-                if score.GetTanimotoCombo() > maxval:
-                    maxval = score.GetTanimotoCombo() 
+        max_tanimoto = 0
+        for score in scores:
+            if score.GetMolIdx() in self.baitset[1]:
+                max_tanimoto = score.GetTanimotoCombo()
                 break
+
+        return max_tanimoto
+
+#        best = oeshape.OEBestOverlay()
+#        best.SetRefMol(refmol)
+#        best.SetColorForceField(oeshape.OEColorFFType_ImplicitMillsDean)
+#        best.SetColorOptimize(True)
+#
+#        maxval = 0
+#        for idx in self.baitset[1]:
+#            scoreiter = oeshape.OEBestOverlayScoreIter()
+#            fitmol = self.act_list[idx]
+#            #oeshape.OESortOverlayScores(scoreiter, best.Overlay(fitmol), oeshape.OEHighestTanimotoCombo())
+#        
+#            for score in scoreiter:
+#                if score.GetTanimotoCombo() > maxval:
+#                    maxval = score.GetTanimotoCombo() 
+#                break
 
         return maxval
 
