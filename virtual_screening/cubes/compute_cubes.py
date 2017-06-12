@@ -784,7 +784,7 @@ class ParallelROCSInsertKnownActives(ParallelComputeCube):
                 act_mol = self.act_list[c]
                 simval = self.calc_sim_val(act_mol)
                 self.log.info(str(self.baitset[0]) + " : KA TanimotoCombo : " + str(simval))
-                #self.update_ranking(act_mol, simval, True)
+                self.update_ranking(act_mol, simval, True)
 
                 c += 1
             c += 1
@@ -792,11 +792,11 @@ class ParallelROCSInsertKnownActives(ParallelComputeCube):
             act_mol = self.act_list[c]
             simval = self.calc_sim_val(act_mol)
             self.log.info(str(self.baitset[0]) + " : KA TanimotoCombo : " + str(simval))
-            #self.update_ranking(act_mol, simval, True)
+            self.update_ranking(act_mol, simval, True)
             c += 1
 
     def calc_sim_val(self, refmol):
-        scores = self.shapedb.GetSortedScores(refmol, options)
+        scores = self.shapedb.GetSortedScores(refmol)
         
         max_tanimoto = 0
         for score in scores:
