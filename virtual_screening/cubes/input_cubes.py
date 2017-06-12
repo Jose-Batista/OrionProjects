@@ -34,6 +34,7 @@ class IndexInputCube(SourceCube):
 
     data_in = parameter.DataSetInputParameter('data_in',
                                     required=True,
+                                    title='Index log',
                                     description='The index log to read from')
 
 

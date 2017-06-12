@@ -397,7 +397,6 @@ class AccumulateRankings(ComputeCube):
         self.method = data[3]
 
     def end(self):
-        print('Accumulator ended')
         self.success.emit((self.ranking_list, self.nb_ka, self.method))
 
 class AnalyseRankings(ComputeCube):
@@ -430,10 +429,7 @@ class AnalyseRankings(ComputeCube):
             set_results = pd.DataFrame(columns = ['RR', 'HR'])
             count = 0
             count_ka = 0
-            print(ranking)
-            sys.stdout.flush()
             for row, mol in enumerate(ranking):
-                self.log.info(str(mol))
                 count += 1
                 if mol[4] == 1:
                     count_ka += 1
