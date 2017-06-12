@@ -316,7 +316,7 @@ class ParallelInsertKnownActives(ParallelComputeCube):
         self.calculate_fp()
         self.insert_known_actives()
 
-        self.success.emit((self.act_list, self.baitset, self.ranking))
+        self.success.emit((self.act_list, self.baitset, self.ranking, 'Fingerprint'))
 
     def calculate_fp(self):
         
@@ -376,7 +376,7 @@ class ParallelInsertKnownActives(ParallelComputeCube):
                     i += 1
 
     def end(self):
-        print('Parallel process ended')
+        pass
 
 class AccumulateRankings(ComputeCube):
     """
@@ -394,10 +394,11 @@ class AccumulateRankings(ComputeCube):
     def process(self, data, port):
         self.ranking_list.append(data[2])
         self.nb_ka = len(data[0])-len(data[1][1])
+        self.method = data[3]
 
     def end(self):
         print('Accumulator ended')
-        self.success.emit((self.ranking_list, self.nb_ka))
+        self.success.emit((self.ranking_list, self.nb_ka, self.method))
 
 class AnalyseRankings(ComputeCube):
     """
@@ -418,32 +419,40 @@ class AnalyseRankings(ComputeCube):
     def process(self, data, port):
         self.ranking_list = data[0]
         self.nb_ka = data[1]
+        self.method = data[2]
         self.results_avg = self.ranking_analysis()
 
-        self.success.emit(self.results_avg)
+        self.success.emit((self.results_avg, self.method))
 
     def ranking_analysis(self):
         results = pd.DataFrame()
-        for i, ranking in enumerate(self.ranking_list):
-            set_results = pd.DataFrame(columns = ['RR', 'HR', 'Set'])
+        for ranking in self.ranking_list:
+            set_results = pd.DataFrame(columns = ['RR', 'HR'])
             count = 0
             count_ka = 0
+            print(ranking)
+            sys.stdout.flush()
             for row, mol in enumerate(ranking):
+                self.log.info(str(mol))
                 count += 1
                 if mol[4] == 1:
                     count_ka += 1
                 rr = 100 * count_ka/self.nb_ka
                 hr = 100 * count_ka/count
-                set_results.loc[row] = [rr, hr, i]
+                set_results.loc[row] = [rr, hr]
             results = pd.concat([results, set_results])
         
         results_avg = pd.DataFrame()
 
-        fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
-        FPType = fptypes[self.args.fptype]
+        if self.method == 'Fingerprint':
+            fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
+            FPType = fptypes[self.args.fptype]
+            name = 'FFP_' + FPType
+        elif self.method == 'FastROCS':
+            name = 'FR'
 
-        results_avg['Average RR ' + FPType] = results.groupby(results.index)['RR'].mean()
-        results_avg['Average HR ' + FPType] = results.groupby(results.index)['HR'].mean()
+        results_avg['Average RR ' + name] = results.groupby(results.index)['RR'].mean()
+        results_avg['Average HR ' + name] = results.groupby(results.index)['HR'].mean()
         results_avg = results_avg.head(self.args.topn)
 
         return results_avg
@@ -758,7 +767,6 @@ class ParallelROCSInsertKnownActives(ParallelComputeCube):
 
     def process(self, data, port):
         
-        self.log.info("processing...")
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
@@ -767,7 +775,7 @@ class ParallelROCSInsertKnownActives(ParallelComputeCube):
         self.create_shapedb()
         self.insert_known_actives()
 
-        self.success.emit((self.act_list, self.baitset, self.ranking))
+        self.success.emit((self.act_list, self.baitset, self.ranking, 'FastROCS'))
 
     def create_shapedb(self):
         dbtype = oefastrocs.OEShapeDatabaseType_Default
@@ -778,12 +786,10 @@ class ParallelROCSInsertKnownActives(ParallelComputeCube):
     def insert_known_actives(self):
 
         c = 0
-        self.log.info("KA for baitset : " + str(self.baitset[0]))
         for idx in self.baitset[1]:
             while c < idx:
                 act_mol = self.act_list[c]
                 simval = self.calc_sim_val(act_mol)
-                self.log.info(str(self.baitset[0]) + " : KA TanimotoCombo : " + str(simval))
                 self.update_ranking(act_mol, simval, True)
 
                 c += 1
@@ -791,7 +797,6 @@ class ParallelROCSInsertKnownActives(ParallelComputeCube):
         while c < len(self.act_list):
             act_mol = self.act_list[c]
             simval = self.calc_sim_val(act_mol)
-            self.log.info(str(self.baitset[0]) + " : KA TanimotoCombo : " + str(simval))
             self.update_ranking(act_mol, simval, True)
             c += 1
 
@@ -849,5 +854,5 @@ class ParallelROCSInsertKnownActives(ParallelComputeCube):
                     i += 1
 
     def end(self):
-        print('Parallel process ended')
+        pass
 

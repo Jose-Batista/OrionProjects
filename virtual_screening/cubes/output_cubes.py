@@ -28,6 +28,9 @@ class TextRankingOutputCube(SinkCube):
     A cube that outputs text
     """
 
+    method = parameter.StringParameter('method', default='Fingerprint',
+                                    help_text='Method used for the ranking')
+
     fptype = parameter.IntegerParameter('fptype', default=105,
                                     help_text="Fingerprint type to use for the ranking")
 
@@ -39,14 +42,18 @@ class TextRankingOutputCube(SinkCube):
     classification = [["Output"]]
 
     def begin(self):
-        fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
-        self.FPType = fptypes[self.args.fptype]
+        if self.args.method == 'Fingerprint':
+            fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
+            self.FPType = fptypes[self.args.fptype]
+            self.name_ext = 'FP_' + self.FPType
+        elif self.args.method == 'FastROCS':
+            self.name_ext = 'FR'
 
         self.in_orion = config_from_env() is not None
         if self.in_orion:
             self.stream = tempfile.NamedTemporaryFile()
         else:
-            path = self.args.name + "ranking_fp_" + self.FPType + ".txt"
+            path = self.args.name + "ranking_" + self.name_ext + ".txt"
             self.stream = open(path, 'wb')
 
 
@@ -65,7 +72,7 @@ class TextRankingOutputCube(SinkCube):
     def end(self):
         if self.in_orion:
             self.stream.flush()
-            name = self.args.name + "ranking_fp_" + self.FPType + ".txt"
+            name = self.args.name + "ranking_" + self.name_ext + ".txt"
             resp = upload_file(name, self.stream.name)
             self.log.info("Created result file {} with ID {}".format(self.args.name, resp['id']))
         else:
@@ -92,19 +99,24 @@ class ResultsOutputCube(SinkCube):
             self.stream = tempfile.NamedTemporaryFile()
 
     def write(self, data, port):
-        self.results_avg = data
+        self.results_avg = data[0]
+        self.method = data[1]
 
-        fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
-        FPType = fptypes[self.args.fptype]
+        if self.method == 'Fingerprint':
+            fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
+            self.FPType = fptypes[self.args.fptype]
+            self.name_ext = 'FP_' + self.FPType
+        elif self.method == 'FastROCS':
+            self.name_ext = 'FR'
 
         if self.in_orion:
             self.results_avg.to_csv(self.stream.name)
             self.stream.flush()
-            name = self.args.name + "_results_ffp_" + FPType + ".csv"
+            name = self.args.name + "_results_" + self.name_ext + ".csv"
             resp = upload_file(name, self.stream.name)
             self.log.info("Created result file {} with ID {}".format(name, resp['id']))
         else:
-            path = self.args.name + "results_ffp_" + FPType + ".csv"
+            path = self.args.name + "results_" + self.name_ext + ".csv"
             self.results_avg.to_csv(path)
 
     def end(self):
@@ -131,41 +143,46 @@ class PlotResults(SinkCube):
             self.stream = tempfile.NamedTemporaryFile()
 
     def write(self, data, port):
-        self.results_avg = data
+        self.results_avg = data[0]
+        self.method = data[1]
 
-        fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
-        FPType = fptypes[self.args.fptype]
+        if self.method == 'Fingerprint':
+            fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
+            self.FPType = fptypes[self.args.fptype]
+            self.name_ext = 'FP_' + self.FPType
+        elif self.method == 'FastROCS':
+            self.name_ext = 'FR'
 
-        self.results_avg.plot(y = 'Average RR ' + FPType, label = "Average RR" + FPType)
+        self.results_avg.plot(y = 'Average RR ' + self.name_ext, label = "Average RR" + self.name_ext)
         plt.xlabel('Top Rank Molecules')
         plt.ylabel('Rate (%)')
         plt.legend( loc='best')
-        plt.title("Average RR Rates " + FPType)
+        plt.title("Average RR Rates " + self.name_ext)
         if self.in_orion:
             plt.savefig(self.stream.name, format="svg")
             self.stream.seek(0)
             self.stream.flush()
-            name = self.args.name + "_Average_ffp_RR_plot_" + FPType + ".svg"
+            name = self.args.name + "_Average_RR_plot_" + self.name_ext + ".svg"
             resp = upload_file(name, self.stream.name)
             self.log.info("Created result file {} with ID {}".format(name, resp['id']))
         else:
-            path = self.args.name + "Average_ffp_RR_plot_" + FPType + ".svg"
+            path = self.args.name + "Average_RR_plot_" + self.name_ext + ".svg"
             plt.savefig(path)
 
-        self.results_avg.plot(y = 'Average HR ' + FPType, label = "Average HR" + FPType)
+        self.results_avg.plot(y = 'Average HR ' + self.name_ext, label = "Average HR" + self.name_ext)
         plt.xlabel('Top Rank Molecules')
         plt.ylabel('Rate (%)')
         plt.legend( loc='best')
-        plt.title("Average HR Rates FP" + FPType)
+        plt.title("Average HR Rates " + self.name_ext)
         if self.in_orion:
             plt.savefig(self.stream.name, format="svg")
             self.stream.seek(0)
             self.stream.flush()
-            name = self.args.name + "_Average_ffp_HR_plot_" + FPType + ".svg"
+            name = self.args.name + "_Average_HR_plot_" + self.name_ext + ".svg"
             resp = upload_file(name, self.stream.name)
             self.log.info("Created result file {} with ID {}".format(name, resp['id']))
         else:
-            path = self.args.name + "Average_ffp_HR_plot_" + FPType + ".svg"
+            path = self.args.name + "Average_HR_plot_" + self.name_ext + ".svg"
             plt.savefig(path)
  
         #plt.show()
