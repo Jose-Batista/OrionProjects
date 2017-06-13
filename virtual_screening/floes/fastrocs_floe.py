@@ -3,7 +3,7 @@
 
 from cubes.input_cubes import IndexInputCube
 from cubes.compute_cubes import (AccuMolList, PrepareRanking, ParallelFastROCSRanking,
-                                ParallelROCSInsertKnownActives, AccumulateRankings, AnalyseRankings, IndexGenerator)
+                                ParallelInsertKARestfulROCS, ParallelROCSInsertKA, AccumulateRankings, AnalyseRankings, IndexGenerator)
 from cubes.output_cubes import TextRankingOutputCube, PlotResults, ResultsOutputCube
 from floe.api import WorkFloe, CubeGroup
 from floe.api import OEMolOStreamCube
@@ -30,7 +30,7 @@ create_ranking = ParallelFastROCSRanking('create_ranking')
 create_ranking.promote_parameter('url', promoted_name='url')
 create_ranking.promote_parameter('topn', promoted_name='topn')
 
-insert_known_actives = ParallelROCSInsertKnownActives('insert known actives')
+insert_known_actives = ParallelInsertKARestfulROCS('insert known actives')
 insert_known_actives.promote_parameter('topn', promoted_name='topn')
 
 accu_rankings = AccumulateRankings('accumulate rankings')

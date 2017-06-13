@@ -2,6 +2,7 @@
 from __future__ import print_function
 import sys, os
 import json,requests
+from requests_toolbelt import MultipartEncoder
 import urllib.parse as parse
 
 import tempfile
@@ -625,6 +626,7 @@ class ShapeDatabaseClient(ComputeCube):
             with oechem.oemolistream(temp.name) as ifs:
                 for mol in ifs.GetOEMols():
                     self.success.emit(mol)
+            os.remove(temp.name)
 
        # url ='http://' + self.args.url + '/queries/{:d}/'.format(idx)
 
@@ -694,6 +696,7 @@ class ParallelFastROCSRanking(ParallelComputeCube):
                 with oechem.oemolistream(temp.name) as ifs:
                     for mol in ifs.GetOEGraphMols():
                         cur_rank.append((oechem.OEMolToSmiles(mol), mol.GetTitle(), float(oechem.OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
+                os.remove(temp.name)
 
             if len(self.ranking) == 0:
                 self.ranking = cur_rank
@@ -749,11 +752,13 @@ class ParallelFastROCSRanking(ParallelComputeCube):
 
         self.ranking = merged_list
 
-class ParallelROCSInsertKnownActives(ParallelComputeCube):
+class ParallelInsertKARestfulROCS(ParallelComputeCube):
     """
     """
 
     classification = [["ParallelCompute"]]
+
+    url = parameter.StringParameter('url', default="http://10.0.1.22:4242", help_text="Url of the Restful FastROCS Server for the request")
 
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
@@ -768,18 +773,73 @@ class ParallelROCSInsertKnownActives(ParallelComputeCube):
         self.ranking = data[2]
         self.log.info("processing KA for baitset : " + str(self.baitset[0]))
 
-        self.create_shapedb()
-        self.insert_known_actives()
+        self.dataset_identifier = 12
+        self.add_dataset()
+        self.add_query()
+        #self.insert_known_actives()
 
         self.success.emit((self.act_list, self.baitset, self.ranking, 'FastROCS'))
 
-    def create_shapedb(self):
-        dbtype = oefastrocs.OEShapeDatabaseType_Default
-        self.shapedb = oefastrocs.OEShapeDatabase(dbtype)
-        for mol in self.act_list:
-           self.shapedb.AddMol(mol) 
+    def add_dataset(self):
+        url = self.args.url + "/datasets/"
+        act_mol_idx = {}
+        dataset = None
+        parameters = {}
+
+        self.dataset = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)
+        with oechem.oemolostream(self.dataset.name) as ofs:
+            for idx, mol in enumerate(self.act_list):
+                act_mol_idx[idx] = mol.GetTitle()
+                oechem.OEWriteMolecule(ofs, mol)
+        self.dataset.flush()
+
+        dataset = open(self.dataset.name, 'rb')
+        parameters["dataset"] = (self.dataset.name, dataset, 'application/octet-stream')
+        parameters["name"] = 'dataset of active molecules' 
+
+        multipart_data = MultipartEncoder(
+            fields=parameters
+        )
+
+        response = requests.post(
+            url,
+            data=multipart_data,
+            headers={"Content-Type": multipart_data.content_type}
+        )
+
+        if dataset is not None:
+            dataset.close()
+        os.remove(self.dataset.name)
+ 
+        data = response.json()
+        #return int(data["id"])
+
+    def add_query(self):
+        url = self.args.url + "/queries/"
+        for idx in self.baitset[1]:
+            self.query = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)  
+            with oechem.oemolostream(self.query.name) as ofs:
+                oechem.OEWriteMolecule(ofs, self.act_list[idx])
+            self.query.flush()
+
+            parameters = {}
+            parameters["num_hits"] = self.args.topn
+            
+            parameters["dataset_identifier"] = self.dataset_identifier
+            with open(self.query.name, "rb") as query_file:
+                response = requests.post(
+                    url,
+                    files={"query": query_file},
+                    data=parameters
+                )
+            os.remove(self.query.name)
 
     def insert_known_actives(self):
+
+        url = self.args.url + "/queries/{}/".format(query_identifier)
+        response = requests.get(url)
+        results_url = response.json()["results"]
+        results_data = requests.get(self.base_url + results_url)
 
         c = 0
         for idx in self.baitset[1]:
