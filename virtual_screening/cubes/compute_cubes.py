@@ -852,3 +852,106 @@ class ParallelROCSInsertKnownActives(ParallelComputeCube):
     def end(self):
         pass
 
+class ParallelROCSInsertKA(ParallelComputeCube):
+    """
+    """
+
+    classification = [["ParallelCompute"]]
+
+    topn = parameter.IntegerParameter('topn', default=100,
+                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
+
+    data_input = ObjectInputPort('data_input')
+    success = ObjectOutputPort('success')
+
+    def process(self, data, port):
+        
+        self.act_list = data[0]
+        self.baitset = data[1]
+        self.ranking = data[2]
+        self.log.info("processing KA for baitset : " + str(self.baitset[0]))
+
+        self.create_shapedb()
+        self.insert_known_actives()
+
+        self.success.emit((self.act_list, self.baitset, self.ranking, 'FastROCS'))
+
+    def create_shapedb(self):
+        dbtype = oefastrocs.OEShapeDatabaseType_Default
+        self.shapedb = oefastrocs.OEShapeDatabase(dbtype)
+        for mol in self.act_list:
+           self.shapedb.AddMol(mol) 
+
+    def insert_known_actives(self):
+
+        c = 0
+        for idx in self.baitset[1]:
+            while c < idx:
+                act_mol = self.act_list[c]
+                simval = self.calc_sim_val(act_mol)
+                self.update_ranking(act_mol, simval, True)
+
+                c += 1
+            c += 1
+        while c < len(self.act_list):
+            act_mol = self.act_list[c]
+            simval = self.calc_sim_val(act_mol)
+            self.update_ranking(act_mol, simval, True)
+            c += 1
+
+    def calc_sim_val(self, refmol):
+        scores = self.shapedb.GetSortedScores(refmol)
+        
+        max_tanimoto = 0
+        for score in scores:
+            if score.GetMolIdx() in self.baitset[1]:
+                max_tanimoto = score.GetTanimotoCombo()
+                break
+
+        return max_tanimoto
+
+#        best = oeshape.OEBestOverlay()
+#        best.SetRefMol(refmol)
+#        best.SetColorForceField(oeshape.OEColorFFType_ImplicitMillsDean)
+#        best.SetColorOptimize(True)
+#
+#        maxval = 0
+#        for idx in self.baitset[1]:
+#            scoreiter = oeshape.OEBestOverlayScoreIter()
+#            fitmol = self.act_list[idx]
+#            #oeshape.OESortOverlayScores(scoreiter, best.Overlay(fitmol), oeshape.OEHighestTanimotoCombo())
+#        
+#            for score in scoreiter:
+#                if score.GetTanimotoCombo() > maxval:
+#                    maxval = score.GetTanimotoCombo() 
+#                break
+
+        return maxval
+
+    def update_ranking(self, mol, max_tanimoto, ka_tag):
+        index = 0
+        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][2]:
+            pass
+        else:    
+            for top_mol in self.ranking:
+                if max_tanimoto < top_mol[2]:
+                    index = self.ranking.index(top_mol) + 1
+                else:
+                    break
+
+            upper = self.ranking[:index]
+            lower = self.ranking[index:]
+            self.ranking = upper + [(oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
+
+            i = self.args.topn - 1
+            while i < len(self.ranking) - 1:
+                if self.ranking[i][2] != self.ranking[i + 1][2]:
+                    self.ranking = self.ranking[:i + 1]
+
+                    break
+                else:
+                    i += 1
+
+    def end(self):
+        pass
+
