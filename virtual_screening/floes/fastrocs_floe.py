@@ -3,7 +3,7 @@
 
 from cubes.input_cubes import IndexInputCube
 from cubes.compute_cubes import (AccuMolList, PrepareRanking, ParallelFastROCSRanking,
-                                ParallelInsertKARestfulROCS, ParallelROCSInsertKA, AccumulateRankings, AnalyseRankings, IndexGenerator)
+                                ParallelInsertKARestfulROCS, AccumulateRankings, AnalyseRankings, IndexGenerator)
 from cubes.output_cubes import TextRankingOutputCube, PlotResults, ResultsOutputCube
 from floe.api import WorkFloe, CubeGroup
 from floe.api import OEMolOStreamCube

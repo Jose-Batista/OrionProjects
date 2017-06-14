@@ -424,6 +424,8 @@ class AccumulateRankings(ComputeCube):
 
     classification = [["Compute", "Accumulator"]]
 
+    url = parameter.StringParameter('url', default="http://10.0.1.22:4242", help_text="Url of the Restful FastROCS Server for the request")
+
     intake = ObjectInputPort('intake')
     success = ObjectOutputPort('success')
 
@@ -433,9 +435,12 @@ class AccumulateRankings(ComputeCube):
     def process(self, data, port):
         self.ranking_list.append(data[2])
         self.nb_ka = len(data[0])-len(data[1][1])
-        self.method = data[3]
+        self.dataset_id = data[3]
+        self.method = data[4]
 
     def end(self):
+        url = self.args.url + '/datasets/'
+        response = requests.delete(url + str(self.dataset_id) + '/')
         self.success.emit((self.ranking_list, self.nb_ka, self.method))
 
 class AnalyseRankings(ComputeCube):
@@ -595,27 +600,6 @@ class CreateTestData(ComputeCube):
 
     def end(self):
         self.success.emit(self.dataframe)
-
-class PingServer(ComputeCube):
-    """
-    Test Cube to ping a server
-    """
-
-    classification = [["Test", "Server"]]
-
-    url = parameter.StringParameter('url', default="10.0.49.140", help_text="Url to be ping")
-
-    intake = ObjectInputPort('intake')
-
-    def process(self, data, port):
-        hostname = self.args.url 
-        self.log.info("pinging server " + self.args.url)
-        response = os.system("ping -c 1 " + hostname)
-
-        if response == 0:
-            self.log.info( hostname + 'is up!')
-        else:
-            self.log.info("can't reach server : Error id " + str(response))
 
 class ShapeDatabaseClient(ComputeCube):
     """
@@ -816,11 +800,11 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
         self.dataset_identifier = self.dataset_infos[0]
         self.add_query()
         self.get_results()
-        for mol, tanimoto in self.cur_scores.items():
+        for tanimoto, mol in self.cur_scores.values():
                 self.update_ranking(mol, tanimoto, True)
 
         print(self.ranking)
-        self.success.emit((self.act_list, self.baitset, self.ranking, 'FastROCS'))
+        self.success.emit((self.act_list, self.baitset, self.ranking, self.dataset_infos[0], 'FastROCS'))
 
     def add_query(self):
         url = self.args.url + "/queries/"
@@ -866,10 +850,10 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
                         if self.dataset_infos[1][mol.GetTitle()] not in self.baitset[1]:
                             tanimoto_combo = float(oechem.OEGetSDData(mol, "TanimotoCombo"))
                             if mol.GetTitle() in self.cur_scores.keys():
-                                if self.cur_scores[mol.GetTitle()] < tanimoto_combo:
-                                    self.cur_scores[mol.GetTitle()] = tanimoto_combo
+                                if self.cur_scores[mol.GetTitle()][0] < tanimoto_combo:
+                                    self.cur_scores[mol.GetTitle()] = (tanimoto_combo, mol.CreateCopy())
                             else:
-                                self.cur_scores[mol.GetTitle()] = tanimoto_combo
+                                self.cur_scores[mol.GetTitle()] = (tanimoto_combo, mol.CreateCopy())
                 os.remove(temp.name)
 
     def update_ranking(self, mol, max_tanimoto, ka_tag):
@@ -886,109 +870,6 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
             upper = self.ranking[:index]
             lower = self.ranking[index:]
             self.ranking = upper + [(oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
-
-            i = self.args.topn - 1
-            while i < len(self.ranking) - 1:
-                if self.ranking[i][2] != self.ranking[i + 1][2]:
-                    self.ranking = self.ranking[:i + 1]
-
-                    break
-                else:
-                    i += 1
-
-    def end(self):
-        pass
-
-class ParallelROCSInsertKA(ParallelComputeCube):
-    """
-    """
-
-    classification = [["ParallelCompute"]]
-
-    topn = parameter.IntegerParameter('topn', default=100,
-                                    help_text="number of top molecules returned in the ranking")
-
-    data_input = ObjectInputPort('data_input')
-    success = ObjectOutputPort('success')
-
-    def process(self, data, port):
-        
-        self.act_list = data[0]
-        self.baitset = data[1]
-        self.ranking = data[2]
-        self.log.info("processing ka for baitset : " + str(self.baitset[0]))
-
-        self.create_shapedb()
-        self.insert_known_actives()
-
-        self.success.emit((self.act_list, self.baitset, self.ranking, 'fastROCS'))
-
-    def create_shapedb(self):
-        dbtype = oefastrocs.OEShapeDatabaseType_default
-        self.shapedb = oefastrocs.OEShapeDatabase(dbtype)
-        for mol in self.act_list:
-           self.shapedb.addmol(mol) 
-
-    def insert_known_actives(self):
-
-        c = 0
-        for idx in self.baitset[1]:
-            while c < idx:
-                act_mol = self.act_list[c]
-                simval = self.calc_sim_val(act_mol)
-                self.update_ranking(act_mol, simval, true)
-
-                c += 1
-            c += 1
-        while c < len(self.act_list):
-            act_mol = self.act_list[c]
-            simval = self.calc_sim_val(act_mol)
-            self.update_ranking(act_mol, simval, true)
-            c += 1
-
-    def calc_sim_val(self, refmol):
-        scores = self.shapedb.getsortedscores(refmol)
-        
-        max_tanimoto = 0
-        for score in scores:
-            if score.getmolidx() in self.baitset[1]:
-                max_tanimoto = score.gettanimotocombo()
-                break
-
-        return max_tanimoto
-
-#        best = oeshape.oebestoverlay()
-#        best.setrefmol(refmol)
-#        best.setcolorforcefield(oeshape.oecolorfftype_implicitmillsdean)
-#        best.setcoloroptimize(true)
-#
-#        maxval = 0
-#        for idx in self.baitset[1]:
-#            scoreiter = oeshape.oebestoverlayscoreiter()
-#            fitmol = self.act_list[idx]
-#            #oeshape.oesortoverlayscores(scoreiter, best.overlay(fitmol), oeshape.oehighesttanimotocombo())
-#        
-#            for score in scoreiter:
-#                if score.gettanimotocombo() > maxval:
-#                    maxval = score.gettanimotocombo() 
-#                break
-
-        return maxval
-
-    def update_ranking(self, mol, max_tanimoto, ka_tag):
-        index = 0
-        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][2]:
-            pass
-        else:    
-            for top_mol in self.ranking:
-                if max_tanimoto < top_mol[2]:
-                    index = self.ranking.index(top_mol) + 1
-                else:
-                    break
-
-            upper = self.ranking[:index]
-            lower = self.ranking[index:]
-            self.ranking = upper + [(oechem.oemoltosmiles(mol), mol.gettitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
 
             i = self.args.topn - 1
             while i < len(self.ranking) - 1:
