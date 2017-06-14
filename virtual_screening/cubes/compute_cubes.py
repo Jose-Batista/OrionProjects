@@ -139,6 +139,8 @@ class CalculateFPCube(ComputeCube):
 
 class PrepareRanking(ComputeCube):
 
+    url = parameter.StringParameter('url', default="http://10.0.1.22:4242", help_text="Url of the Restful FastROCS Server for the request")
+
     act_input = ObjectInputPort('act_input')
     baitset_input = ObjectInputPort('baitset_input')
     success = ObjectOutputPort('success')
@@ -151,13 +153,49 @@ class PrepareRanking(ComputeCube):
     def process(self, data, port):
         if port is 'act_input':
             self.act_list = data
-
+            self.dataset_infos = self.add_dataset()
+            
         if port is 'baitset_input':
             self.baitsets.append(data)
 
         if len(self.act_list) > 0 :
             while len(self.baitsets) > 0 :
-                self.success.emit((self.act_list, self.baitsets.pop(), self.ranking))
+                self.success.emit((self.act_list, self.baitsets.pop(), self.ranking, self.dataset_infos))
+
+    def add_dataset(self):
+        url = self.args.url + "/datasets/"
+        act_mol_idx = {}
+        dataset = None
+        parameters = {}
+
+        self.dataset = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)
+        with oechem.oemolostream(self.dataset.name) as ofs:
+            for idx, mol in enumerate(self.act_list):
+                act_mol_idx[mol.GetTitle()] = idx
+                oechem.OEWriteMolecule(ofs, mol)
+        self.dataset.flush()
+
+        dataset = open(self.dataset.name, 'rb')
+        parameters["dataset"] = (self.dataset.name, dataset, 'application/octet-stream')
+        parameters["name"] = 'dataset of active molecules' 
+
+        multipart_data = MultipartEncoder(
+            fields=parameters
+        )
+
+        response = requests.post(
+            url,
+            data=multipart_data,
+            headers={"content-type": multipart_data.content_type}
+        )
+
+        if dataset is not None:
+            dataset.close()
+        os.remove(self.dataset.name)
+ 
+        data = response.json()
+        dataset_infos = (data["id"], act_mol_idx)
+        return dataset_infos
 
 class ParallelRanking(ParallelComputeCube):
     """
@@ -660,6 +698,7 @@ class ParallelFastROCSRanking(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
+        self.dataset_infos = data[3]
 
         self.log.info("start ranking baitset number " + str(self.baitset[0]))
         s = ServerProxy("http://" + self.args.url)
@@ -706,7 +745,7 @@ class ParallelFastROCSRanking(ParallelComputeCube):
             self.log.info("Baitset " + str(self.baitset[0]) + " : " + str(count) +" requests processed")
 
         self.log.info("Emitting ranking baitset " + str(self.baitset[0]))
-        self.success.emit((self.act_list, self.baitset, self.ranking))
+        self.success.emit((self.act_list, self.baitset, self.ranking, self.dataset_infos))
 
     def merge_ranking(self, ranking):
         merged_list = list()
@@ -771,51 +810,21 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
+        self.dataset_infos = data[3]
         self.log.info("processing KA for baitset : " + str(self.baitset[0]))
 
-        self.dataset_identifier = 12
-        self.add_dataset()
+        self.dataset_identifier = self.dataset_infos[0]
         self.add_query()
-        #self.insert_known_actives()
+        self.get_results()
+        for mol, tanimoto in self.cur_scores.items():
+                self.update_ranking(mol, tanimoto, True)
 
+        print(self.ranking)
         self.success.emit((self.act_list, self.baitset, self.ranking, 'FastROCS'))
-
-    def add_dataset(self):
-        url = self.args.url + "/datasets/"
-        act_mol_idx = {}
-        dataset = None
-        parameters = {}
-
-        self.dataset = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)
-        with oechem.oemolostream(self.dataset.name) as ofs:
-            for idx, mol in enumerate(self.act_list):
-                act_mol_idx[idx] = mol.GetTitle()
-                oechem.OEWriteMolecule(ofs, mol)
-        self.dataset.flush()
-
-        dataset = open(self.dataset.name, 'rb')
-        parameters["dataset"] = (self.dataset.name, dataset, 'application/octet-stream')
-        parameters["name"] = 'dataset of active molecules' 
-
-        multipart_data = MultipartEncoder(
-            fields=parameters
-        )
-
-        response = requests.post(
-            url,
-            data=multipart_data,
-            headers={"Content-Type": multipart_data.content_type}
-        )
-
-        if dataset is not None:
-            dataset.close()
-        os.remove(self.dataset.name)
- 
-        data = response.json()
-        #return int(data["id"])
 
     def add_query(self):
         url = self.args.url + "/queries/"
+        self.query_id_list = list()
         for idx in self.baitset[1]:
             self.query = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)  
             with oechem.oemolostream(self.query.name) as ofs:
@@ -833,57 +842,35 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
                     data=parameters
                 )
             os.remove(self.query.name)
+            data = response.json()
+            self.query_id_list.append(data["id"])
 
-    def insert_known_actives(self):
+    def get_results(self):
+        self.cur_scores = {}
 
-        url = self.args.url + "/queries/{}/".format(query_identifier)
-        response = requests.get(url)
-        results_url = response.json()["results"]
-        results_data = requests.get(self.base_url + results_url)
+        for query_id in self.query_id_list:
+            url = self.args.url + "/queries/{}/".format(query_id)
+            response = None
+            while response == None or data["status"]["job"] != "COMPLETED":
+                time.sleep(3)
+                response = requests.get(url)
+                data = response.json()
+            results_url = data["results"]
+            results_data = requests.get(self.args.url + results_url)
 
-        c = 0
-        for idx in self.baitset[1]:
-            while c < idx:
-                act_mol = self.act_list[c]
-                simval = self.calc_sim_val(act_mol)
-                self.update_ranking(act_mol, simval, True)
-
-                c += 1
-            c += 1
-        while c < len(self.act_list):
-            act_mol = self.act_list[c]
-            simval = self.calc_sim_val(act_mol)
-            self.update_ranking(act_mol, simval, True)
-            c += 1
-
-    def calc_sim_val(self, refmol):
-        scores = self.shapedb.GetSortedScores(refmol)
-        
-        max_tanimoto = 0
-        for score in scores:
-            if score.GetMolIdx() in self.baitset[1]:
-                max_tanimoto = score.GetTanimotoCombo()
-                break
-
-        return max_tanimoto
-
-#        best = oeshape.OEBestOverlay()
-#        best.SetRefMol(refmol)
-#        best.SetColorForceField(oeshape.OEColorFFType_ImplicitMillsDean)
-#        best.SetColorOptimize(True)
-#
-#        maxval = 0
-#        for idx in self.baitset[1]:
-#            scoreiter = oeshape.OEBestOverlayScoreIter()
-#            fitmol = self.act_list[idx]
-#            #oeshape.OESortOverlayScores(scoreiter, best.Overlay(fitmol), oeshape.OEHighestTanimotoCombo())
-#        
-#            for score in scoreiter:
-#                if score.GetTanimotoCombo() > maxval:
-#                    maxval = score.GetTanimotoCombo() 
-#                break
-
-        return maxval
+            with tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False) as temp:
+                temp.write(results_data.content)
+                temp.flush()
+                with oechem.oemolistream(temp.name) as results:
+                    for mol in results.GetOEGraphMols():
+                        if self.dataset_infos[1][mol.GetTitle()] not in self.baitset[1]:
+                            tanimoto_combo = float(oechem.OEGetSDData(mol, "TanimotoCombo"))
+                            if mol.GetTitle() in self.cur_scores.keys():
+                                if self.cur_scores[mol.GetTitle()] < tanimoto_combo:
+                                    self.cur_scores[mol.GetTitle()] = tanimoto_combo
+                            else:
+                                self.cur_scores[mol.GetTitle()] = tanimoto_combo
+                os.remove(temp.name)
 
     def update_ranking(self, mol, max_tanimoto, ka_tag):
         index = 0
@@ -919,7 +906,7 @@ class ParallelROCSInsertKA(ParallelComputeCube):
     classification = [["ParallelCompute"]]
 
     topn = parameter.IntegerParameter('topn', default=100,
-                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
+                                    help_text="number of top molecules returned in the ranking")
 
     data_input = ObjectInputPort('data_input')
     success = ObjectOutputPort('success')
@@ -929,18 +916,18 @@ class ParallelROCSInsertKA(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
-        self.log.info("processing KA for baitset : " + str(self.baitset[0]))
+        self.log.info("processing ka for baitset : " + str(self.baitset[0]))
 
         self.create_shapedb()
         self.insert_known_actives()
 
-        self.success.emit((self.act_list, self.baitset, self.ranking, 'FastROCS'))
+        self.success.emit((self.act_list, self.baitset, self.ranking, 'fastROCS'))
 
     def create_shapedb(self):
-        dbtype = oefastrocs.OEShapeDatabaseType_Default
+        dbtype = oefastrocs.OEShapeDatabaseType_default
         self.shapedb = oefastrocs.OEShapeDatabase(dbtype)
         for mol in self.act_list:
-           self.shapedb.AddMol(mol) 
+           self.shapedb.addmol(mol) 
 
     def insert_known_actives(self):
 
@@ -949,41 +936,41 @@ class ParallelROCSInsertKA(ParallelComputeCube):
             while c < idx:
                 act_mol = self.act_list[c]
                 simval = self.calc_sim_val(act_mol)
-                self.update_ranking(act_mol, simval, True)
+                self.update_ranking(act_mol, simval, true)
 
                 c += 1
             c += 1
         while c < len(self.act_list):
             act_mol = self.act_list[c]
             simval = self.calc_sim_val(act_mol)
-            self.update_ranking(act_mol, simval, True)
+            self.update_ranking(act_mol, simval, true)
             c += 1
 
     def calc_sim_val(self, refmol):
-        scores = self.shapedb.GetSortedScores(refmol)
+        scores = self.shapedb.getsortedscores(refmol)
         
         max_tanimoto = 0
         for score in scores:
-            if score.GetMolIdx() in self.baitset[1]:
-                max_tanimoto = score.GetTanimotoCombo()
+            if score.getmolidx() in self.baitset[1]:
+                max_tanimoto = score.gettanimotocombo()
                 break
 
         return max_tanimoto
 
-#        best = oeshape.OEBestOverlay()
-#        best.SetRefMol(refmol)
-#        best.SetColorForceField(oeshape.OEColorFFType_ImplicitMillsDean)
-#        best.SetColorOptimize(True)
+#        best = oeshape.oebestoverlay()
+#        best.setrefmol(refmol)
+#        best.setcolorforcefield(oeshape.oecolorfftype_implicitmillsdean)
+#        best.setcoloroptimize(true)
 #
 #        maxval = 0
 #        for idx in self.baitset[1]:
-#            scoreiter = oeshape.OEBestOverlayScoreIter()
+#            scoreiter = oeshape.oebestoverlayscoreiter()
 #            fitmol = self.act_list[idx]
-#            #oeshape.OESortOverlayScores(scoreiter, best.Overlay(fitmol), oeshape.OEHighestTanimotoCombo())
+#            #oeshape.oesortoverlayscores(scoreiter, best.overlay(fitmol), oeshape.oehighesttanimotocombo())
 #        
 #            for score in scoreiter:
-#                if score.GetTanimotoCombo() > maxval:
-#                    maxval = score.GetTanimotoCombo() 
+#                if score.gettanimotocombo() > maxval:
+#                    maxval = score.gettanimotocombo() 
 #                break
 
         return maxval
@@ -1001,7 +988,7 @@ class ParallelROCSInsertKA(ParallelComputeCube):
 
             upper = self.ranking[:index]
             lower = self.ranking[index:]
-            self.ranking = upper + [(oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
+            self.ranking = upper + [(oechem.oemoltosmiles(mol), mol.gettitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
 
             i = self.args.topn - 1
             while i < len(self.ranking) - 1:
