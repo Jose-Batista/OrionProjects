@@ -26,11 +26,13 @@ index_generator = IndexGenerator('index generator')
 accu_act = AccuMolList('accumulate actives')
 
 prep_ranking = PrepareRanking('prepare similarity calculation')
+prep_ranking.promote_parameter('url', promoted_name='url')
 create_ranking = ParallelFastROCSRanking('create_ranking')
 create_ranking.promote_parameter('url', promoted_name='url')
 create_ranking.promote_parameter('topn', promoted_name='topn')
 
 insert_known_actives = ParallelInsertKARestfulROCS('insert known actives')
+insert_known_actives.promote_parameter('url', promoted_name='url')
 insert_known_actives.promote_parameter('topn', promoted_name='topn')
 
 accu_rankings = AccumulateRankings('accumulate rankings')
