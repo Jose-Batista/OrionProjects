@@ -5,7 +5,7 @@ pandas
 requests_toolbelt
 
 # OE Stack
-openeye-floe==0.2.157
+openeye-floe==0.2.158
 #openeye-aquifer
 
 # Others

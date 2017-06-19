@@ -147,4 +147,27 @@ class OEMolTriggeredIStreamCube(ComputeCube):
 #                        break
 #        else:
 #            print('Waiting...')
-#
+
+class Test(SourceCube):
+    success = ObjectOutputPort('success')
+    data_in = parameter.DataSetInputParameter('data_in',
+                                    required=True,
+                                    title='Index log',
+                                    description='The index log to read from')
+    def begin(self):
+        pass
+
+    def __iter__(self):
+        molA = oechem.OEGraphMol()
+        molB = oechem.OEGraphMol()
+        oechem.OESmilesToMol(molA, 'c1cccc1 A')
+        oechem.OESmilesToMol(molB, 'c1cccc1 B')
+        act_list = [molA, molB]
+        baitset = (0, [0])
+        ranking = list()
+        dataset_infos = (0, {"A":0, "B":1})
+        yield (act_list, baitset, ranking, dataset_infos)
+
+    def end(self):
+        pass
+

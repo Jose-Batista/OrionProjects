@@ -657,7 +657,6 @@ class ShapeDatabaseClient(ComputeCube):
         #data = response.json()
         #print(data)
 
-
 class ParallelFastROCSRanking(ParallelComputeCube):
     """
     A compute Cube that receives a Molecule a baitset of indices and a FastROCSServer address
@@ -666,7 +665,7 @@ class ParallelFastROCSRanking(ParallelComputeCube):
 
     classification = [["Compute", "FastROCS", "Similarity"]]
 
-    url = parameter.StringParameter('url', default="http://78.94.160.186:8081", help_text="Url of the FastROCS Server for the request")
+    url = parameter.StringParameter('url', default="http://10.0.61.25:4711", help_text="Url of the FastROCS Server for the request")
 
     dataset_name = parameter.StringParameter('dataset_name', default="screening_database", help_text="Name of the screening database")
 
@@ -705,7 +704,7 @@ class ParallelFastROCSRanking(ParallelComputeCube):
             self.log.info("Baitset " + str(self.baitset[0]) + " : " + str(count) +" requests processed")
 
         self.log.info("Emitting ranking baitset " + str(self.baitset[0]))
-        self.success.emit((self.act_list, self.baitset, self.ranking, self.dataset_infos))
+        self.success.emit((self.act_list, self.baitset, self.ranking, self.dataset_infos, 'FastROCS'))
 
     def add_queries(self):
         url = self.args.url + "/queries/"
