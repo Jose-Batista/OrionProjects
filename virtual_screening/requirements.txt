@@ -2,6 +2,7 @@
 matplotlib
 numpy
 pandas
+requests_toolbelt
 
 # OE Stack
 openeye-floe==0.2.157
