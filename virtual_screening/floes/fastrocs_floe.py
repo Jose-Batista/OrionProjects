@@ -36,6 +36,7 @@ insert_known_actives.promote_parameter('url', promoted_name='url')
 insert_known_actives.promote_parameter('topn', promoted_name='topn')
 
 accu_rankings = AccumulateRankings('accumulate rankings')
+accu_rankings.promote_parameter('url', promoted_name='url')
 analyse_rankings = AnalyseRankings('analyse rankings')
 analyse_rankings.promote_parameter('fptype', promoted_name='fptype')
 analyse_rankings.promote_parameter('topn', promoted_name='topn')
