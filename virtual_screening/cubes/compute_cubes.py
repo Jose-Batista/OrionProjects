@@ -749,7 +749,7 @@ class ParallelFastROCSRanking(ParallelComputeCube):
         response = None
         tries = 0
         while response == None or data["status"]["job"] != "COMPLETED":
-            time.sleep(3 * tries)
+            time.sleep(9 * tries)
             tries += 1
             response = requests.get(url)
             data = response.json()
