@@ -246,7 +246,6 @@ class ParallelRanking(ParallelComputeCube):
             hitlist = response.content.decode().split('\n')
             hitlist.pop(0)
             hitlist.pop()
-            print(hitlist)
             cur_rank = list()
             for mol in hitlist:
                 cur_mol = mol.split(',')
@@ -500,7 +499,7 @@ class AnalyseRankings(ComputeCube):
         if self.method == 'Fingerprint':
             fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
             FPType = fptypes[self.args.fptype]
-            name = 'FFP_' + FPType
+            name = 'FP_' + FPType
         elif self.method == 'FastROCS':
             name = 'FR'
 
