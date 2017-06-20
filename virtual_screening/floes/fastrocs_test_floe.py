@@ -19,7 +19,9 @@ Read a molecule query and return the FastROCS Server Results
 input_cube = Test('input')
 
 request_cube = ParallelFastROCSRanking('request_cube')
+request_cube.promote_parameter('url', promoted_name='url')
 accu_cube = AccumulateRankings('accu')
+accu_cube.promote_parameter('url', promoted_name='url')
 
 output_cube = TextRankingOutputCube('results_output')
 output_cube.promote_parameter('name', promoted_name='name')

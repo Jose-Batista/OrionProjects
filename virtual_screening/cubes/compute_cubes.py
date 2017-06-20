@@ -141,6 +141,9 @@ class PrepareRanking(ComputeCube):
 
     url = parameter.StringParameter('url', default="http://10.0.1.22:4242", help_text="Url of the Restful FastROCS Server for the request")
 
+    method = parameter.StringParameter('method', default='Fingerprint',
+                                    help_text='Method used for the ranking')
+
     act_input = ObjectInputPort('act_input')
     baitset_input = ObjectInputPort('baitset_input')
     success = ObjectOutputPort('success')
@@ -153,14 +156,18 @@ class PrepareRanking(ComputeCube):
     def process(self, data, port):
         if port is 'act_input':
             self.act_list = data
-            self.dataset_infos = self.add_dataset()
+            if self.args.method == 'FastROCS':
+                self.dataset_infos = self.add_dataset()
             
         if port is 'baitset_input':
             self.baitsets.append(data)
 
         if len(self.act_list) > 0 :
             while len(self.baitsets) > 0 :
-                self.success.emit((self.act_list, self.baitsets.pop(), self.ranking, self.dataset_infos))
+                if self.args.method == 'FastROCS':
+                    self.success.emit((self.act_list, self.baitsets.pop(), self.ranking, self.dataset_infos))
+                else:
+                    self.success.emit((self.act_list, self.baitsets.pop(), self.ranking))
 
     def add_dataset(self):
         url = self.args.url + "/datasets/"
@@ -205,6 +212,8 @@ class ParallelRanking(ParallelComputeCube):
 
     classification = [["Compute", "Fingerprint", "Similarity"]]
 
+    url = parameter.StringParameter('url', default="http://10.0.62.124:8081", help_text="Url of the FastFingerPrint Server for the request")
+
     fptype = parameter.IntegerParameter('fptype', default=105,
                                     help_text="Fingerprint type to use for the ranking")
 
@@ -227,21 +236,21 @@ class ParallelRanking(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
-        baseurl = "http://130.180.63.34:8069"
         fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
         database = fptypes[self.args.fptype] + "_db"
         for idx in self.baitset[1]:
             smiles = oechem.OEMolToSmiles(self.act_list[idx])
             safe_smiles = parse.quote(smiles)
-            url = "%s/%s/hitlist?smiles=%s&oformat=csv&maxhits=%d" %(baseurl, database, safe_smiles, self.args.topn) 
+            url = "%s/%s/hitlist?smiles=%s&oformat=csv&maxhits=%d" %(self.args.url, database, safe_smiles, self.args.topn) 
             response = requests.get( url )
             hitlist = response.content.decode().split('\n')
             hitlist.pop(0)
             hitlist.pop()
+            print(hitlist)
             cur_rank = list()
             for mol in hitlist:
                 cur_mol = mol.split(',')
-                cur_rank.append((cur_mol[0], cur_mol[1], float(cur_mol[5]), self.baitset[0], False))
+                cur_rank.append((cur_mol[0], cur_mol[1], float(cur_mol[4]), self.baitset[0], False))
             if len(self.ranking) == 0:
                 self.ranking = cur_rank
             else:
@@ -431,16 +440,20 @@ class AccumulateRankings(ComputeCube):
 
     def begin(self):
         self.ranking_list = list()
+        self.dataset_id = None
 
     def process(self, data, port):
         self.ranking_list.append(data[2])
         self.nb_ka = len(data[0])-len(data[1][1])
-        self.dataset_id = data[3]
-        self.method = data[4]
+        self.method = data[3]
+        if len(data) == 5:
+            self.dataset_id = data[4]
 
     def end(self):
         url = self.args.url + '/datasets/'
-        response = requests.delete(url + str(self.dataset_id) + '/')
+        if self.dataset_id != None:
+            pass
+            #response = requests.delete(url + str(self.dataset_id) + '/')
         self.success.emit((self.ranking_list, self.nb_ka, self.method))
 
 class AnalyseRankings(ComputeCube):

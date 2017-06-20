@@ -26,6 +26,7 @@ index_generator = IndexGenerator('index generator')
 accu_act = AccuMolList('accumulate actives')
 
 prep_ranking = PrepareRanking('prepare similarity calculation')
+prep_ranking.promote_parameter('method', promoted_name='method')
 prep_ranking.promote_parameter('url', promoted_name='url')
 create_ranking = ParallelFastROCSRanking('create_ranking')
 create_ranking.promote_parameter('url', promoted_name='url')
