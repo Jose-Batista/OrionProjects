@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 from cubes.input_cubes import IndexInputCube, OEMolTriggeredIStreamCube
-from cubes.compute_cubes import (CalculateFPCube, ParallelCalculateFP, AccuMolList, ParallelRanking, ParallelUpdateRanking, 
-                                PrepareRanking, ParallelInsertKnownActives, AccumulateRankings, AnalyseRankings, IndexGenerator)
+from cubes.compute_cubes import (AccuMolList, ParallelFastFPRanking, IndexGenerator,
+                                PrepareRanking, ParallelFastFPInsertKA, AccumulateRankings, AnalyseRankings) 
 from cubes.output_cubes import TextRankingOutputCube, PlotResults, ResultsOutputCube
 from floe.api import WorkFloe, CubeGroup
 from floe.api import OEMolOStreamCube

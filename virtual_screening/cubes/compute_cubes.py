@@ -141,9 +141,6 @@ class PrepareRanking(ComputeCube):
 
     url = parameter.StringParameter('url', default="http://10.0.1.22:4242", help_text="Url of the Restful FastROCS Server for the request")
 
-    method = parameter.StringParameter('method', default='Fingerprint',
-                                    help_text='Method used for the ranking')
-
     act_input = ObjectInputPort('act_input')
     baitset_input = ObjectInputPort('baitset_input')
     success = ObjectOutputPort('success')
@@ -156,18 +153,14 @@ class PrepareRanking(ComputeCube):
     def process(self, data, port):
         if port is 'act_input':
             self.act_list = data
-            if self.args.method == 'FastROCS':
-                self.dataset_infos = self.add_dataset()
+            self.dataset_infos = self.add_dataset()
             
         if port is 'baitset_input':
             self.baitsets.append(data)
 
         if len(self.act_list) > 0 :
             while len(self.baitsets) > 0 :
-                if self.args.method == 'FastROCS':
-                    self.success.emit((self.act_list, self.baitsets.pop(), self.ranking, self.dataset_infos))
-                else:
-                    self.success.emit((self.act_list, self.baitsets.pop(), self.ranking))
+                self.success.emit((self.act_list, self.baitsets.pop(), self.ranking, self.dataset_infos))
 
     def add_dataset(self):
         url = self.args.url + "/datasets/"
@@ -204,7 +197,7 @@ class PrepareRanking(ComputeCube):
         dataset_infos = (data["id"], act_mol_idx)
         return dataset_infos
 
-class ParallelRanking(ParallelComputeCube):
+class ParallelFastFPRanking(ParallelComputeCube):
     """
     A compute Cube that receives a Molecule and a list of Fingerprints with a baitset of indices
     and returns the max Similarity value of the Molecule against the Fingerprints
@@ -225,10 +218,6 @@ class ParallelRanking(ParallelComputeCube):
 
 
     def begin(self):
-#        self.max_tanimoto = 0
-#        self.fp = None
-#        self.fp_list = None
-#        self.baitset = None
         pass
 
     def process(self, data, port):
@@ -254,19 +243,6 @@ class ParallelRanking(ParallelComputeCube):
                 self.ranking = cur_rank
             else:
                 self.merge_ranking(cur_rank)
-
-        #if self.fp_list is not None and self.baitset is not None:
-        #with oechem.oemolistream(str(self.args.data_in)) as ifs:
-        #    for mol in ifs.GetOEMols():
-        #        max_tanimoto = 0
-        #        fp = oegraphsim.OEFingerPrint()
-        #        oegraphsim.OEMakeFP(fp, mol, self.args.fptype)
-        #        for idx in self.baitset[1]:
-        #            act_fp = self.fp_list[idx]
-        #            tanimoto = oegraphsim.OETanimoto(fp, self.fp_list[idx])
-        #            if tanimoto > max_tanimoto:
-        #                max_tanimoto = tanimoto
-        #        self.update_ranking(mol, max_tanimoto, False)
 
         self.success.emit((self.act_list, self.baitset, self.ranking))
 
@@ -338,7 +314,7 @@ class ParallelRanking(ParallelComputeCube):
                 else:
                     i += 1
 
-class ParallelInsertKnownActives(ParallelComputeCube):
+class ParallelFastFPInsertKA(ParallelComputeCube):
     """
     """
 
@@ -363,7 +339,7 @@ class ParallelInsertKnownActives(ParallelComputeCube):
         self.calculate_fp()
         self.insert_known_actives()
 
-        self.success.emit((self.act_list, self.baitset, self.ranking, 'Fingerprint'))
+        self.success.emit((self.act_list, self.baitset, self.ranking)) 
 
     def calculate_fp(self):
         
@@ -425,250 +401,6 @@ class ParallelInsertKnownActives(ParallelComputeCube):
     def end(self):
         pass
 
-class AccumulateRankings(ComputeCube):
-    """
-    A compute Cube that receives rankings and assemble them in a list
-    """
-
-    classification = [["Compute", "Accumulator"]]
-
-    url = parameter.StringParameter('url', default="http://10.0.1.22:4242", help_text="Url of the Restful FastROCS Server for the request")
-
-    intake = ObjectInputPort('intake')
-    success = ObjectOutputPort('success')
-
-    def begin(self):
-        self.ranking_list = list()
-        self.dataset_id = None
-
-    def process(self, data, port):
-        self.ranking_list.append(data[2])
-        self.nb_ka = len(data[0])-len(data[1][1])
-        self.method = data[3]
-        if len(data) == 5:
-            self.dataset_id = data[4]
-
-    def end(self):
-        url = self.args.url + '/datasets/'
-        if self.dataset_id != None:
-            pass
-            #response = requests.delete(url + str(self.dataset_id) + '/')
-        self.success.emit((self.ranking_list, self.nb_ka, self.method))
-
-class AnalyseRankings(ComputeCube):
-    """
-
-    """
-
-    classification = [["Compute", "Analysis"]]
-
-    fptype = parameter.IntegerParameter('fptype', default=105,
-                                    help_text="Fingerprint type to use for the ranking")
-
-    topn = parameter.IntegerParameter('topn', default=100,
-                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
-
-    intake = ObjectInputPort('intake')
-    success = ObjectOutputPort('success')
-
-    def process(self, data, port):
-        self.ranking_list = data[0]
-        self.nb_ka = data[1]
-        self.method = data[2]
-        self.results_avg = self.ranking_analysis()
-
-        self.success.emit((self.results_avg, self.method))
-
-    def ranking_analysis(self):
-        results = pd.DataFrame()
-        for ranking in self.ranking_list:
-            set_results = pd.DataFrame(columns = ['RR', 'HR'])
-            count = 0
-            count_ka = 0
-            for row, mol in enumerate(ranking):
-                count += 1
-                if mol[4] == 1:
-                    count_ka += 1
-                rr = 100 * count_ka/self.nb_ka
-                hr = 100 * count_ka/count
-                set_results.loc[row] = [rr, hr]
-            results = pd.concat([results, set_results])
-        
-        results_avg = pd.DataFrame()
-
-        if self.method == 'Fingerprint':
-            fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
-            FPType = fptypes[self.args.fptype]
-            name = 'FP_' + FPType
-        elif self.method == 'FastROCS':
-            name = 'FR'
-
-        results_avg['Average RR ' + name] = results.groupby(results.index)['RR'].mean()
-        results_avg['Average HR ' + name] = results.groupby(results.index)['HR'].mean()
-        results_avg = results_avg.head(self.args.topn)
-
-        return results_avg
-
-
-class ParallelUpdateRanking(ParallelComputeCube):
-    """
-    A compute Cube that receives Molecules from the screening db with their Similarity value and rank them in the rnking list
-    """
-
-    classification = [["Compute", "Ranking"]]
-
-    intake = ObjectInputPort('intake')
-    success = ObjectOutputPort('success')
-
-    topn = parameter.IntegerParameter('topn', default=100,
-                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
-
-    def begin(self):
-        self.ranking= list()
-
-    def process(self, data, port):
-        index = 0
-        if len(self.ranking) >= self.args.topn and data[2] < self.ranking[len(self.ranking)-1][2]:
-            pass
-        else:    
-            for top_mol in self.ranking:
-                if data[2] < top_mol[2]:
-                    index = self.ranking.index(top_mol) + 1
-                else:
-                    break
-
-            upper = self.ranking[:index]
-            lower = self.ranking[index:]
-            self.ranking = upper + [data] + lower
-
-            i = self.args.topn - 1
-            while i < len(self.ranking) - 1:
-                if self.ranking[i][2] != self.ranking[i + 1][2]:
-                    self.ranking = self.ranking[:i + 1]
-
-                    break
-                else:
-                    i += 1
-
-    def end(self):
-        self.success.emit(self.ranking)
-
-class ParallelCalculateFP(ParallelOEMolComputeCube):
-    """
-    A compute Cube that gets Molecules and assemble them in a list
-    """
-
-    classification = [["Compute", "Concat"]]
-
-    fptype = parameter.IntegerParameter('fptype', default=105,
-                                    help_text="Fingerprint type to use for the ranking")
-
-    intake = MoleculeInputPort('intake')
-    success = MoleculeOutputPort('success')
-
-
-    def begin(self):
-        pass
-
-    def process(self, mol, port):
-        fp = oegraphsim.OEFingerPrint()
-        oegraphsim.OEMakeFP(fp, mol, self.args.fptype)
-
-        time.sleep(random.random())
-
-        self.success.emit(mol)
-
-    def end(self):
-        pass
-
-class CreateTestData(ComputeCube):
-    """
-    Test Cube to delete
-    """
-
-    classification = [["Compute", "Test"]]
-
-    fptype = parameter.IntegerParameter('fptype', default=105,
-                                    help_text="Fingerprint type to use for the ranking")
-
-    topn = parameter.IntegerParameter('topn', default=100,
-                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
-
-    intake = ObjectInputPort('intake')
-    success = ObjectOutputPort('success')
-
-    def begin(self):
-
-        fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
-        FPType = fptypes[self.args.fptype]
-
-        self.dataframe = pd.DataFrame(columns = ['Average RR ' + FPType, 'Average HR ' + FPType ])
-
-    def process(self, data, port):
-        self.set_id = data[0]
-        self.baitset = data[1]
-        for idx in self.baitset:
-            self.dataframe.loc[len(self.dataframe)] = [idx, self.set_id]
-
-    def end(self):
-        self.success.emit(self.dataframe)
-
-class ShapeDatabaseClient(ComputeCube):
-    """
-    Test Cube to ping a server
-    """
-
-    classification = [["Test", "Server"]]
-
-    url = parameter.StringParameter('url', default="52.207.211.90:4711", help_text="Url of the FastROCS Server for the request")
-
-    topn = parameter.IntegerParameter('topn', default=100,
-                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
-
-    intake = MoleculeInputPort('intake')
-    success = MoleculeOutputPort('success')
-
-    def process(self, data, port):
-        s = ServerProxy("http://" + self.args.url)
-
-        query = oechem.OEWriteMolToBytes('.oeb', data)
-        query = Binary(query)
-
-        idx = s.SubmitQuery(query, self.args.topn, '.oeb', '.oeb')
-
-        while True:
-            blocking = True
-            try:
-                current, total = s.QueryStatus(idx, blocking)
-            except Fault as e:
-                print(str(e), file=sys.stderr)
-                return 1
-            
-            if total == 0:
-                continue
-
-            print("%i/%i" % (current, total))
-            
-            if total <= current:
-                break
-        
-        results = s.QueryResults(idx)
-
-        with tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False) as temp:
-            temp.write(results.data)
-            temp.flush()
-            with oechem.oemolistream(temp.name) as ifs:
-                for mol in ifs.GetOEMols():
-                    self.success.emit(mol)
-            os.remove(temp.name)
-
-       # url ='http://' + self.args.url + '/queries/{:d}/'.format(idx)
-
-       # response = requests.get(url)
-       # print(response)
-        #data = response.json()
-        #print(data)
-
 class ParallelFastROCSRanking(ParallelComputeCube):
     """
     A compute Cube that receives a Molecule a baitset of indices and a FastROCSServer address
@@ -717,7 +449,7 @@ class ParallelFastROCSRanking(ParallelComputeCube):
 
         sys.stdout.flush()
         self.log.info("Emitting ranking baitset " + str(self.baitset[0]))
-        self.success.emit((self.act_list, self.baitset, self.ranking, self.dataset_infos, 'FastROCS'))
+        self.success.emit((self.act_list, self.baitset, self.ranking, self.dataset_infos)) 
 
     def add_queries(self):
         url = self.args.url + "/queries/"
@@ -837,7 +569,7 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
         for tanimoto, mol in self.cur_scores.values():
                 self.update_ranking(mol, tanimoto, True)
 
-        self.success.emit((self.act_list, self.baitset, self.ranking, self.dataset_infos[0], 'FastROCS'))
+        self.success.emit((self.act_list, self.baitset, self.ranking, self.dataset_infos[0]))
 
     def add_queries(self):
         url = self.args.url + "/queries/"
@@ -917,4 +649,91 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
 
     def end(self):
         pass
+
+class AccumulateRankings(ComputeCube):
+    """
+    A compute Cube that receives rankings and assemble them in a list
+    """
+
+    classification = [["Compute", "Accumulator"]]
+
+    url = parameter.StringParameter('url', default="http://10.0.1.22:4242", help_text="Url of the Restful FastROCS Server for the request")
+
+    fpintake = ObjectInputPort('fpintake')
+    rocsintake = ObjectInputPort('rocsintake')
+    success = ObjectOutputPort('success')
+
+    def begin(self):
+        self.fp_ranking_list = list()
+        self.rocs_ranking_list = list()
+
+    def process(self, data, port):
+        if port == 'fpintake':
+            self.fp_ranking_list.append(data[2])
+            self.nb_ka = len(data[0])-len(data[1][1])
+        if port == 'rocsintake':
+            self.rocs_ranking_list.append(data[2])
+            self.nb_ka = len(data[0])-len(data[1][1])
+            self.dataset_id = data[3]
+
+    def end(self):
+        url = self.args.url + '/datasets/'
+        if self.dataset_id != None:
+            response = requests.delete(url + str(self.dataset_id) + '/')
+        self.success.emit((self.fp_ranking_list, self.nb_ka, 'FastFP')) 
+        self.success.emit((self.rocs_ranking_list, self.nb_ka, 'FastROCS'))
+
+class AnalyseRankings(ComputeCube):
+    """
+
+    """
+
+    classification = [["Compute", "Analysis"]]
+
+    fptype = parameter.IntegerParameter('fptype', default=105,
+                                    help_text="Fingerprint type to use for the ranking")
+
+    topn = parameter.IntegerParameter('topn', default=100,
+                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
+
+    intake = ObjectInputPort('intake')
+    success = ObjectOutputPort('success')
+
+    def process(self, data, port):
+        self.ranking_list = data[0]
+        self.nb_ka = data[1]
+        self.method = data[2]
+        self.results_avg = self.ranking_analysis()
+
+        self.success.emit((self.results_avg, self.method))
+
+    def ranking_analysis(self):
+        results = pd.DataFrame()
+        for ranking in self.ranking_list:
+            set_results = pd.DataFrame(columns = ['RR', 'HR'])
+            count = 0
+            count_ka = 0
+            for row, mol in enumerate(ranking):
+                count += 1
+                if mol[4] == 1:
+                    count_ka += 1
+                rr = 100 * count_ka/self.nb_ka
+                hr = 100 * count_ka/count
+                set_results.loc[row] = [rr, hr]
+            results = pd.concat([results, set_results])
+        
+        results_avg = pd.DataFrame()
+
+        if self.method == 'Fingerprint':
+            fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
+            FPType = fptypes[self.args.fptype]
+            name = 'FP_' + FPType
+        elif self.method == 'FastROCS':
+            name = 'FR'
+
+        results_avg['Average RR ' + name] = results.groupby(results.index)['RR'].mean()
+        results_avg['Average HR ' + name] = results.groupby(results.index)['HR'].mean()
+        results_avg = results_avg.head(self.args.topn)
+
+        return results_avg
 
