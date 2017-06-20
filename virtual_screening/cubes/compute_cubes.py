@@ -685,6 +685,8 @@ class ParallelFastROCSRanking(ParallelComputeCube):
         self.ranking = data[2]
         self.dataset_infos = data[3]
 
+        print('start')
+        sys.stdout.flush()
         self.log.info("start ranking baitset number " + str(self.baitset[0]))
 
         url = self.args.url + "/datasets/?name={}".format(self.args.dataset_name)
@@ -703,6 +705,8 @@ class ParallelFastROCSRanking(ParallelComputeCube):
             count += 1
             self.log.info("Baitset " + str(self.baitset[0]) + " : " + str(count) +" requests processed")
 
+        print('emit')
+        sys.stdout.flush()
         self.log.info("Emitting ranking baitset " + str(self.baitset[0]))
         self.success.emit((self.act_list, self.baitset, self.ranking, self.dataset_infos, 'FastROCS'))
 
