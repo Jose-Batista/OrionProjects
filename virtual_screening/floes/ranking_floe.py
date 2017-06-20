@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 from cubes.input_cubes import IndexInputCube, OEMolTriggeredIStreamCube
-from cubes.compute_cubes import (CalculateFPCube, ParallelCalculateFP, AccuMolList, ParallelRanking, ParallelUpdateRanking, 
-                                PrepareRanking, ParallelInsertKnownActives, AccumulateRankings, AnalyseRankings, IndexGenerator)
+from cubes.compute_cubes import (AccuMolList, ParallelFastFPRanking, IndexGenerator,
+                                PrepareRanking, ParallelFastFPInsertKA, AccumulateRankings, AnalyseRankings)
 from cubes.output_cubes import TextRankingOutputCube, PlotResults, ResultsOutputCube
 from floe.api import WorkFloe, CubeGroup
 from floe.api import OEMolOStreamCube
@@ -27,13 +27,13 @@ accu_act = AccuMolList('accumulate actives')
 
 prep_sim_calc = PrepareRanking('prepare similarity calculation')
 prep_sim_calc.promote_parameter('method', promoted_name='method')
-calc_sim = ParallelRanking('calculate similarity value')
+calc_sim = ParallelFastFPRanking('calculate similarity value')
 calc_sim.promote_parameter('url', promoted_name='url')
 calc_sim.promote_parameter('fptype', promoted_name='fptype')
 calc_sim.promote_parameter('topn', promoted_name='topn')
 #calc_sim.promote_parameter('data_in', promoted_name='screen_db')
 
-insert_known_actives = ParallelInsertKnownActives('insert known actives')
+insert_known_actives = ParallelFastFPInsertKA('insert known actives')
 insert_known_actives.promote_parameter('fptype', promoted_name='fptype')
 insert_known_actives.promote_parameter('topn', promoted_name='topn')
 #update_ranking = ParallelUpdateRanking('update ranking')
