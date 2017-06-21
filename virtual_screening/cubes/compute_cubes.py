@@ -390,7 +390,7 @@ class ParallelFastFPInsertKA(ParallelComputeCube):
     def end(self):
         pass
 
-class ParallelFastROCSRanking(ComputeCube):
+class ParallelFastROCSRanking(ParallelComputeCube):
     """
     A compute Cube that receives a Molecule a baitset of indices and a FastROCSServer address
     and returns the ranking of the Server Molecules against the query
@@ -401,6 +401,8 @@ class ParallelFastROCSRanking(ComputeCube):
     url = parameter.StringParameter('url', default="http://10.0.61.25:4711", help_text="Url of the FastROCS Server for the request")
 
     dataset_name = parameter.StringParameter('dataset_name', default="screening_database", help_text="Name of the screening database")
+
+    blocking = parameter.BooleanParameter('blocking', default=True, help_text="Waits for results from the server if True")
 
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
@@ -423,12 +425,20 @@ class ParallelFastROCSRanking(ComputeCube):
         url = self.args.url + "/datasets/?name={}".format(self.args.dataset_name)
         response = requests.get(url)
         data = response.json()
-        self.dataset_identifier = int(data["id"])
+        print(data)
+        sys.stdout.flush()
+        self.dataset_identifier = 3 #int(data["id"])
 
         count = 0
-        self.add_queries()
-        for query_id in self.query_id_list:
-            cur_rank = self.get_result(query_id)
+        if self.args.blocking:
+            results = self.run_query()
+        else:
+            self.add_query()
+            results = self.get_result()
+
+        cur_ranking_dict = self.create_rankings(results)
+
+        for cur_rank in cur_ranking_dict.values():
             if len(self.ranking) == 0:
                 self.ranking = cur_rank
             else:
@@ -436,55 +446,120 @@ class ParallelFastROCSRanking(ComputeCube):
             count += 1
             self.log.info("Baitset " + str(self.baitset[0]) + " : " + str(count) +" requests processed")
 
-        sys.stdout.flush()
         self.log.info("Emitting ranking baitset " + str(self.baitset[0]))
         self.success.emit((self.act_list, self.baitset, self.ranking, self.dataset_infos, 'FastROCS'))
 
-    def add_queries(self):
+    def run_query(self):
         url = self.args.url + "/queries/"
-        self.query_id_list = list()
+
+        self.query = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)  
         for idx in self.baitset[1]:
-            self.query = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)  
             with oechem.oemolostream(self.query.name) as ofs:
                 oechem.OEWriteMolecule(ofs, self.act_list[idx])
-            self.query.flush()
+        self.query.flush()
 
-            parameters = {}
-            parameters["num_hits"] = self.args.topn
-            
-            parameters["dataset_identifier"] = self.dataset_identifier
-            with open(self.query.name, "rb") as query_file:
-                response = requests.post(
-                    url,
-                    files={"query": query_file},
-                    data=parameters
-                )
-            os.remove(self.query.name)
-            data = response.json()
-            self.query_id_list.append(data["id"])
+        parameters = {}
+        parameters["num_hits"] = self.args.topn
+        parameters["dataset_identifier"] = self.dataset_identifier
+        parameters["cutoff"] = 0.0
+        parameters["ScaffoldCutoff"] = 1.0
+        parameters["SimFunc"] = 'Tanimoto'
+        parameters["SimType"] = 'Combo'
+        parameters["shape_only"] = False
 
-    def get_result(self, query_id):
+        with open(self.query.name, "rb") as query_file:
+            response = requests.post(
+                url,
+                files={"query": query_file},
+                data=parameters
+            )
+            if not response.ok:
+                print(response.json()["error"])
+                return
+
+        os.remove(self.query.name)
+        data = response.json()
+        query_id = data["id"]
+
+        status_url = url + "{}/".format(query_id)
+        while True:
+            response = requests.get(status_url)
+            if not response.ok:
+                print(response.json()["error"])
+                return
+            results = response.json()
+            status = results["status"]
+            total = int(status["total"])
+            current = int(status["current"])
+
+            if status["job"] == "FAILED":
+                print("Query {0:d} failed".format(query_id))
+                return
+
+            if(total != 0 and current >= total and
+               status["job"] == "COMPLETED"):
+                break
+
+        response = requests.get(self.args.url + results["results"])
+        return response
+
+    def add_query(self):
+        url = self.args.url + "/queries/"
+
+        self.query = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)  
+        for idx in self.baitset[1]:
+            with oechem.oemolostream(self.query.name) as ofs:
+                oechem.OEWriteMolecule(ofs, self.act_list[idx])
+        self.query.flush()
+
+        parameters = {}
+        parameters["num_hits"] = self.args.topn
+        parameters["dataset_identifier"] = self.dataset_identifier
+
+        with open(self.query.name, "rb") as query_file:
+            response = requests.post(
+                url,
+                files={"query": query_file},
+                data=parameters
+            )
+        os.remove(self.query.name)
+        data = response.json()
+        self.query_id = data["id"]
+
+    def get_result(self):
         cur_rank = list()
 
-        url = self.args.url + "/queries/{}/".format(query_id)
-        response = None
+        url = self.args.url + "/queries/{}/".format(self.query_id)
         tries = 0
-        while response == None or data["status"]["job"] != "COMPLETED":
-            time.sleep(60 * tries)
+        while True:
+            time.sleep(3 * tries)
             tries += 1
             response = requests.get(url)
             data = response.json()
+            if data["status"]["job"] != "COMPLETED":
+                break
+
         results_url = data["results"]
         results_data = requests.get(self.args.url + results_url)
 
+        return results_data
+
+    def create_rankings(self, results_data):
+        cur_ranking_dict = dict()
         with tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False) as temp:
             temp.write(results_data.content)
             temp.flush()
             with oechem.oemolistream(temp.name) as results:
                 for mol in results.GetOEGraphMols():
-                    cur_rank.append((oechem.OEMolToSmiles(mol), mol.GetTitle(), float(oechem.OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
+                    if oechem.OEGetSDData(mol, 'QueryMol') in cur_ranking_dict.keys():
+                        cur_ranking_dict[oechem.OEGetSDData(mol, 'QueryMol')].append((oechem.OEMolToSmiles(mol), mol.GetTitle(), float(oechem.OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
+                    else:
+                        cur_rank = list()
+                        cur_rank.append((oechem.OEMolToSmiles(mol), mol.GetTitle(), float(oechem.OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
+                        cur_ranking_dict[oechem.OEGetSDData(mol, 'QueryMol')] = cur_rank
+
             os.remove(temp.name)
-        return cur_rank
+            return cur_ranking_dict
 
     def merge_ranking(self, ranking):
         merged_list = list()
@@ -538,6 +613,8 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
 
     url = parameter.StringParameter('url', default="http://10.0.1.22:4242", help_text="Url of the Restful FastROCS Server for the request")
 
+    blocking = parameter.BooleanParameter('blocking', default=True, help_text="Waits for results from the server if True")
+
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
 
@@ -553,12 +630,72 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
         self.log.info("processing KA for baitset : " + str(self.baitset[0]))
 
         self.dataset_identifier = self.dataset_infos[0]
-        self.add_queries()
-        self.get_results()
+
+        if self.args.blocking:
+            results = self.run_query()
+        else:
+            self.add_query()
+            results = self.get_result()
+
+        self.create_cur_scores(results)
         for tanimoto, mol in self.cur_scores.values():
                 self.update_ranking(mol, tanimoto, True)
 
-        self.success.emit((self.act_list, self.baitset, self.ranking, self.dataset_infos[0], 'FastROCS'))
+        self.success.emit((self.act_list, self.baitset, self.ranking, 'FastROCS', self.dataset_infos[0]))
+
+    def run_query(self):
+        url = self.args.url + "/queries/"
+
+        self.query = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)  
+        for idx in self.baitset[1]:
+            with oechem.oemolostream(self.query.name) as ofs:
+                oechem.OEWriteMolecule(ofs, self.act_list[idx])
+        self.query.flush()
+
+        parameters = {}
+        parameters["num_hits"] = self.args.topn
+        parameters["dataset_identifier"] = self.dataset_identifier
+        parameters["cutoff"] = 0.0
+        parameters["ScaffoldCutoff"] = 1.0
+        parameters["SimFunc"] = 'Tanimoto'
+        parameters["SimType"] = 'Combo'
+        parameters["shape_only"] = False
+
+        with open(self.query.name, "rb") as query_file:
+            response = requests.post(
+                url,
+                files={"query": query_file},
+                data=parameters
+            )
+            if not response.ok:
+                print(response.json()["error"])
+                return
+
+        os.remove(self.query.name)
+        data = response.json()
+        query_id = data["id"]
+
+        status_url = url + "{}/".format(query_id)
+        while True:
+            response = requests.get(status_url)
+            if not response.ok:
+                print(response.json()["error"])
+                return
+            results = response.json()
+            status = results["status"]
+            total = int(status["total"])
+            current = int(status["current"])
+
+            if status["job"] == "FAILED":
+                print("Query {0:d} failed".format(query_id))
+                return
+
+            if(total != 0 and current >= total and
+               status["job"] == "COMPLETED"):
+                break
+
+        response = requests.get(self.args.url + results["results"])
+        return response
 
     def add_queries(self):
         url = self.args.url + "/queries/"
@@ -584,7 +721,6 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
             self.query_id_list.append(data["id"])
 
     def get_results(self):
-        self.cur_scores = {}
 
         for query_id in self.query_id_list:
             url = self.args.url + "/queries/{}/".format(query_id)
@@ -598,19 +734,21 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
             results_url = data["results"]
             results_data = requests.get(self.args.url + results_url)
 
-            with tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False) as temp:
-                temp.write(results_data.content)
-                temp.flush()
-                with oechem.oemolistream(temp.name) as results:
-                    for mol in results.GetOEGraphMols():
-                        if self.dataset_infos[1][mol.GetTitle()] not in self.baitset[1]:
-                            tanimoto_combo = float(oechem.OEGetSDData(mol, "TanimotoCombo"))
-                            if mol.GetTitle() in self.cur_scores.keys():
-                                if self.cur_scores[mol.GetTitle()][0] < tanimoto_combo:
-                                    self.cur_scores[mol.GetTitle()] = (tanimoto_combo, mol.CreateCopy())
-                            else:
+    def create_cur_scores(self, results_data):
+        self.cur_scores = {}
+        with tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False) as temp:
+            temp.write(results_data.content)
+            temp.flush()
+            with oechem.oemolistream(temp.name) as results:
+                for mol in results.GetOEGraphMols():
+                    if self.dataset_infos[1][mol.GetTitle()] not in self.baitset[1]:
+                        tanimoto_combo = float(oechem.OEGetSDData(mol, "TanimotoCombo"))
+                        if mol.GetTitle() in self.cur_scores.keys():
+                            if self.cur_scores[mol.GetTitle()][0] < tanimoto_combo:
                                 self.cur_scores[mol.GetTitle()] = (tanimoto_combo, mol.CreateCopy())
-                os.remove(temp.name)
+                        else:
+                            self.cur_scores[mol.GetTitle()] = (tanimoto_combo, mol.CreateCopy())
+            os.remove(temp.name)
 
     def update_ranking(self, mol, max_tanimoto, ka_tag):
         index = 0
