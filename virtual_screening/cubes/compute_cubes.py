@@ -422,12 +422,13 @@ class ParallelFastROCSRanking(ParallelComputeCube):
 
         self.log.info("start ranking baitset number {}".format(self.baitset[0]))
 
-        url = self.args.url + "/datasets/?name={}".format(self.args.dataset_name)
+        url = self.args.url + "/datasets/"
         response = requests.get(url)
         data = response.json()
-        print(data)
-        sys.stdout.flush()
-        self.dataset_identifier = 3 #int(data["id"])
+        datasets = data["datasets"]
+        for dataset in datasets:
+            if dataset["name"] == self.args.dataset_name:
+                self.dataset_identifier = int(dataset["id"])
 
         count = 0
         if self.args.blocking:
