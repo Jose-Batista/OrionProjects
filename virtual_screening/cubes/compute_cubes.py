@@ -483,7 +483,10 @@ class ParallelFastROCSRanking(ParallelComputeCube):
         query_id = data["id"]
 
         status_url = url + "{}/".format(query_id)
+        tries = 0
         while True:
+            time.sleep(tries)
+            tries += 1
             response = requests.get(status_url)
             if not response.ok:
                 print(response.json()["error"])
