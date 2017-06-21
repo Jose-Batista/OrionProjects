@@ -390,7 +390,7 @@ class ParallelFastFPInsertKA(ParallelComputeCube):
     def end(self):
         pass
 
-class ParallelFastROCSRanking(ParallelComputeCube):
+class ParallelFastROCSRanking(ComputeCube):
     """
     A compute Cube that receives a Molecule a baitset of indices and a FastROCSServer address
     and returns the ranking of the Server Molecules against the query
