@@ -104,7 +104,7 @@ class IndexGenerator(ComputeCube):
 
 class PrepareRanking(ComputeCube):
 
-    url = parameter.StringParameter('url', default="http://10.0.1.22:4242", help_text="Url of the Restful FastROCS Server for the request")
+    url = parameter.StringParameter('url', default="http://10.0.61.25:4711", help_text="Url of the Restful FastROCS Server for the request")
 
     method = parameter.StringParameter('method', default='Fingerprint',
                                     help_text='Method used for the ranking')
@@ -486,7 +486,6 @@ class ParallelFastROCSRanking(ParallelComputeCube):
         tries = 0
         while True:
             time.sleep(tries)
-            tries += 1
             response = requests.get(status_url)
             if not response.ok:
                 print(response.json()["error"])
@@ -615,7 +614,7 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
 
     classification = [["ParallelCompute"]]
 
-    url = parameter.StringParameter('url', default="http://10.0.1.22:4242", help_text="Url of the Restful FastROCS Server for the request")
+    url = parameter.StringParameter('url', default="http://10.0.61.25:4711", help_text="Url of the Restful FastROCS Server for the request")
 
     blocking = parameter.BooleanParameter('blocking', default=True, help_text="Waits for results from the server if True")
 
@@ -680,7 +679,10 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
         query_id = data["id"]
 
         status_url = url + "{}/".format(query_id)
+        tries = 0
         while True:
+            time.sleep(tries)
+            tries += 1
             response = requests.get(status_url)
             if not response.ok:
                 print(response.json()["error"])
@@ -788,7 +790,7 @@ class AccumulateRankings(ComputeCube):
 
     classification = [["Compute", "Accumulator"]]
 
-    url = parameter.StringParameter('url', default="http://10.0.1.22:4242", help_text="Url of the Restful FastROCS Server for the request")
+    url = parameter.StringParameter('url', default="http://10.0.61.25:4711", help_text="Url of the Restful FastROCS Server for the request")
 
     intake = ObjectInputPort('intake')
     success = ObjectOutputPort('success')
