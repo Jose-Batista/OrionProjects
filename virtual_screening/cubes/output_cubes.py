@@ -28,9 +28,6 @@ class TextRankingOutputCube(SinkCube):
     A cube that outputs text
     """
 
-    method = parameter.StringParameter('method', default='Fingerprint',
-                                    help_text='Method used for the ranking')
-
     fptype = parameter.IntegerParameter('fptype', default=105,
                                     help_text="Fingerprint type to use for the ranking")
 
@@ -42,11 +39,17 @@ class TextRankingOutputCube(SinkCube):
     classification = [["Output"]]
 
     def begin(self):
-        if self.args.method == 'Fingerprint':
+        pass
+
+    def write(self, data, port):
+        self.ranking_list = data[0]
+        self.method = data[2]
+
+        if self.method == 'FastFP':
             fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
             self.FPType = fptypes[self.args.fptype]
             self.name_ext = 'FP_' + self.FPType
-        elif self.args.method == 'FastROCS':
+        elif self.method == 'FastROCS':
             self.name_ext = 'FR'
 
         self.in_orion = config_from_env() is not None
@@ -55,11 +58,6 @@ class TextRankingOutputCube(SinkCube):
         else:
             path = self.args.name + "ranking_" + self.name_ext + ".txt"
             self.stream = open(path, 'wb')
-
-
-    def write(self, data, port):
-        self.ranking_list = data[0]
-
         for i, ranking in enumerate(self.ranking_list):
             text = "\n" + "Set n°" + str(ranking[0][2]) + "\n"
             text = text.encode("utf-8")
@@ -69,7 +67,6 @@ class TextRankingOutputCube(SinkCube):
                 mol_data = mol_data.encode("utf-8")
                 self.stream.write(mol_data)
 
-    def end(self):
         if self.in_orion:
             self.stream.flush()
             name = self.args.name + "ranking_" + self.name_ext + ".txt"
@@ -77,6 +74,9 @@ class TextRankingOutputCube(SinkCube):
             self.log.info("Created result file {} with ID {}".format(self.args.name, resp['id']))
         else:
             self.stream.close()
+
+    def end(self):
+        pass
 
 class ResultsOutputCube(SinkCube):
     """
@@ -102,7 +102,7 @@ class ResultsOutputCube(SinkCube):
         self.results_avg = data[0]
         self.method = data[1]
 
-        if self.method == 'Fingerprint':
+        if self.method == 'FastFP':
             fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
             self.FPType = fptypes[self.args.fptype]
             self.name_ext = 'FP_' + self.FPType
@@ -146,7 +146,7 @@ class PlotResults(SinkCube):
         self.results_avg = data[0]
         self.method = data[1]
 
-        if self.method == 'Fingerprint':
+        if self.method == 'FastFP':
             fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
             self.FPType = fptypes[self.args.fptype]
             self.name_ext = 'FP_' + self.FPType

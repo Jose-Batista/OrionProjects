@@ -198,12 +198,13 @@ class ParallelFastFPRanking(ParallelComputeCube):
             url = "%s/%s/hitlist?smiles=%s&oformat=csv&maxhits=%d" %(self.args.url, database, safe_smiles, self.args.topn) 
             response = requests.get( url )
             hitlist = response.content.decode().split('\n')
+            sys.stdout.flush()
             hitlist.pop(0)
             hitlist.pop()
             cur_rank = list()
             for mol in hitlist:
                 cur_mol = mol.split(',')
-                cur_rank.append((cur_mol[1], float(cur_mol[4]), self.baitset[0], False))
+                cur_rank.append((cur_mol[1], float(cur_mol[5]), self.baitset[0], False))
             if len(self.ranking) == 0:
                 self.ranking = cur_rank
             else:
@@ -744,7 +745,7 @@ class AnalyseRankings(ComputeCube):
         
         results_avg = pd.DataFrame()
 
-        if self.method == 'Fingerprint':
+        if self.method == 'FastFP':
             fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
             FPType = fptypes[self.args.fptype]
             name = 'FP_' + FPType
