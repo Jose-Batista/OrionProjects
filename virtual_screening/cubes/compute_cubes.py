@@ -214,7 +214,7 @@ class ParallelFastFPRanking(ParallelComputeCube):
             cur_rank = list()
             for mol in hitlist:
                 cur_mol = mol.split(',')
-                cur_rank.append((cur_mol[0], cur_mol[1], float(cur_mol[4]), self.baitset[0], False))
+                cur_rank.append((cur_mol[1], float(cur_mol[4]), self.baitset[0], False))
             if len(self.ranking) == 0:
                 self.ranking = cur_rank
             else:
@@ -242,23 +242,23 @@ class ParallelFastFPRanking(ParallelComputeCube):
         count = 0
         id_set = set()
         while i < len(self.ranking):
-            while j < len(ranking) and ranking[j][2] > self.ranking[i][2]:
-                if ranking[j][1] not in id_set: 
-                    if count < self.args.topn or ranking[j][2] == merged_list[count-1][2]:
+            while j < len(ranking) and ranking[j][1] > self.ranking[i][1]:
+                if ranking[j][0] not in id_set: 
+                    if count < self.args.topn or ranking[j][1] == merged_list[count-1][1]:
                         merged_list.append(ranking[j])
                         count += 1
-                        id_set.add(ranking[j][1])
+                        id_set.add(ranking[j][0])
                         j += 1
                     else:
                         break
                 else:
                     j += 1
 
-            if self.ranking[i][1] not in id_set: 
-                if self.ranking[i] not in id_set and (count < self.args.topn or self.ranking[i][2] == merged_list[count-1][2]):
+            if self.ranking[i][0] not in id_set: 
+                if self.ranking[i] not in id_set and (count < self.args.topn or self.ranking[i][1] == merged_list[count-1][1]):
                     merged_list.append(self.ranking[i])  
                     count += 1
-                    id_set.add(self.ranking[i][1])
+                    id_set.add(self.ranking[i][0])
                     i += 1
                 else:
                     break
@@ -266,11 +266,11 @@ class ParallelFastFPRanking(ParallelComputeCube):
                 i += 1
 
         while j < len(ranking):
-            if ranking[j][1] not in id_set: 
-                if ranking[j] not in id_set and (count < self.args.topn or ranking[j][2] == merged_list[count-1][2]):
+            if ranking[j][0] not in id_set: 
+                if ranking[j] not in id_set and (count < self.args.topn or ranking[j][1] == merged_list[count-1][1]):
                     merged_list.append(ranking[j])
                     count += 1
-                    id_set.add(ranking[j][1])
+                    id_set.add(ranking[j][0])
                     j += 1
                 else:
                     break
@@ -281,22 +281,22 @@ class ParallelFastFPRanking(ParallelComputeCube):
 
     def update_ranking(self, mol, max_tanimoto, ka_tag):
         index = 0
-        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][2]:
+        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][1]:
             pass
         else:    
             for top_mol in self.ranking:
-                if max_tanimoto < top_mol[2]:
+                if max_tanimoto < top_mol[1]:
                     index = self.ranking.index(top_mol) + 1
                 else:
                     break
 
             upper = self.ranking[:index]
             lower = self.ranking[index:]
-            self.ranking = upper + [(oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
+            self.ranking = upper + [(mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
 
             i = self.args.topn - 1
             while i < len(self.ranking) - 1:
-                if self.ranking[i][2] != self.ranking[i + 1][2]:
+                if self.ranking[i][1] != self.ranking[i + 1][1]:
                     self.ranking = self.ranking[:i + 1]
 
                     break
@@ -365,22 +365,22 @@ class ParallelFastFPInsertKA(ParallelComputeCube):
 
     def update_ranking(self, mol, max_tanimoto, ka_tag):
         index = 0
-        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][2]:
+        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][1]:
             pass
         else:    
             for top_mol in self.ranking:
-                if max_tanimoto < top_mol[2]:
+                if max_tanimoto < top_mol[1]:
                     index = self.ranking.index(top_mol) + 1
                 else:
                     break
 
             upper = self.ranking[:index]
             lower = self.ranking[index:]
-            self.ranking = upper + [(oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
+            self.ranking = upper + [(mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
 
             i = self.args.topn - 1
             while i < len(self.ranking) - 1:
-                if self.ranking[i][2] != self.ranking[i + 1][2]:
+                if self.ranking[i][1] != self.ranking[i + 1][1]:
                     self.ranking = self.ranking[:i + 1]
 
                     break
@@ -508,12 +508,11 @@ class ParallelFastROCSRanking(ParallelComputeCube):
             with oechem.oemolistream(temp.name) as results:
                 for mol in results.GetOEGraphMols():
                     if oechem.OEGetSDData(mol, 'QueryMol') in cur_ranking_dict.keys():
-                        print([mol[1] for mol in cur_ranking_dict[oechem.OEGetSDData(mol, 'QueryMol')]])
-                        if mol.GetTitle() not in [mol[1] for mol in cur_ranking_dict[oechem.OEGetSDData(mol, 'QueryMol')]]:
-                            cur_ranking_dict[oechem.OEGetSDData(mol, 'QueryMol')].append((oechem.OEMolToSmiles(mol), mol.GetTitle(), float(oechem.OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
+                        if mol.GetTitle() not in [mol[0] for mol in cur_ranking_dict[oechem.OEGetSDData(mol, 'QueryMol')]]:
+                            cur_ranking_dict[oechem.OEGetSDData(mol, 'QueryMol')].append((mol.GetTitle(), float(oechem.OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
                     else:
                         cur_rank = list()
-                        cur_rank.append((oechem.OEMolToSmiles(mol), mol.GetTitle(), float(oechem.OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
+                        cur_rank.append((mol.GetTitle(), float(oechem.OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
                         cur_ranking_dict[oechem.OEGetSDData(mol, 'QueryMol')] = cur_rank
 
             os.remove(temp.name)
@@ -526,23 +525,23 @@ class ParallelFastROCSRanking(ParallelComputeCube):
         count = 0
         id_set = set()
         while i < len(self.ranking):
-            while j < len(ranking) and ranking[j][2] > self.ranking[i][2]:
+            while j < len(ranking) and ranking[j][1] > self.ranking[i][1]:
                 if ranking[j][1] not in id_set: 
-                    if count < self.args.topn or ranking[j][2] == merged_list[count-1][2]:
+                    if count < self.args.topn or ranking[j][1] == merged_list[count-1][1]:
                         merged_list.append(ranking[j])
                         count += 1
-                        id_set.add(ranking[j][1])
+                        id_set.add(ranking[j][0])
                         j += 1
                     else:
                         break
                 else:
                     j += 1
 
-            if self.ranking[i][1] not in id_set: 
-                if self.ranking[i] not in id_set and (count < self.args.topn or self.ranking[i][2] == merged_list[count-1][2]):
+            if self.ranking[i][0] not in id_set: 
+                if self.ranking[i] not in id_set and (count < self.args.topn or self.ranking[i][1] == merged_list[count-1][1]):
                     merged_list.append(self.ranking[i])  
                     count += 1
-                    id_set.add(self.ranking[i][1])
+                    id_set.add(self.ranking[i][0])
                     i += 1
                 else:
                     break
@@ -550,11 +549,11 @@ class ParallelFastROCSRanking(ParallelComputeCube):
                 i += 1
 
         while j < len(ranking):
-            if ranking[j][1] not in id_set: 
-                if ranking[j] not in id_set and (count < self.args.topn or ranking[j][2] == merged_list[count-1][2]):
+            if ranking[j][0] not in id_set: 
+                if ranking[j] not in id_set and (count < self.args.topn or ranking[j][1] == merged_list[count-1][1]):
                     merged_list.append(ranking[j])
                     count += 1
-                    id_set.add(ranking[j][1])
+                    id_set.add(ranking[j][0])
                     j += 1
                 else:
                     break
@@ -670,22 +669,22 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
 
     def update_ranking(self, mol, max_tanimoto, ka_tag):
         index = 0
-        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][2]:
+        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][1]:
             pass
         else:    
             for top_mol in self.ranking:
-                if max_tanimoto < top_mol[2]:
+                if max_tanimoto < top_mol[1]:
                     index = self.ranking.index(top_mol) + 1
                 else:
                     break
 
             upper = self.ranking[:index]
             lower = self.ranking[index:]
-            self.ranking = upper + [(oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
+            self.ranking = upper + [(mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
 
             i = self.args.topn - 1
             while i < len(self.ranking) - 1:
-                if self.ranking[i][2] != self.ranking[i + 1][2]:
+                if self.ranking[i][1] != self.ranking[i + 1][1]:
                     self.ranking = self.ranking[:i + 1]
 
                     break
@@ -756,7 +755,7 @@ class AnalyseRankings(ComputeCube):
             count_ka = 0
             for row, mol in enumerate(ranking):
                 count += 1
-                if mol[4] == 1:
+                if mol[3] == 1:
                     count_ka += 1
                 rr = 100 * count_ka/self.nb_ka
                 hr = 100 * count_ka/count
