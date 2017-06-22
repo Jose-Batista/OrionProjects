@@ -162,7 +162,7 @@ class PrepareRanking(ComputeCube):
         dataset_infos = (data["id"], act_mol_idx)
         return dataset_infos
 
-class ParallelFastFPRanking(ParallelComputeCube):
+class ParallelTreeFPRanking(ParallelComputeCube):
     """
     A compute Cube that receives a Molecule and a list of Fingerprints with a baitset of indices
     and returns the max Similarity value of the Molecule against the Fingerprints
@@ -171,9 +171,6 @@ class ParallelFastFPRanking(ParallelComputeCube):
     classification = [["Compute", "Fingerprint", "Similarity"]]
 
     url = parameter.StringParameter('url', default="http://10.0.62.124:8081", help_text="Url of the FastFingerPrint Server for the request")
-
-    fptype = parameter.IntegerParameter('fptype', default=105,
-                                    help_text="Fingerprint type to use for the ranking")
 
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
@@ -190,12 +187,10 @@ class ParallelFastFPRanking(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
-        fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
-        database = fptypes[self.args.fptype] + "_db"
         for idx in self.baitset[1]:
             smiles = oechem.OEMolToSmiles(self.act_list[idx])
             safe_smiles = parse.quote(smiles)
-            url = "%s/%s/hitlist?smiles=%s&oformat=csv&maxhits=%d" %(self.args.url, database, safe_smiles, self.args.topn) 
+            url = "%s/%s/hitlist?smiles=%s&oformat=csv&maxhits=%d" %(self.args.url, 'tree_db', safe_smiles, self.args.topn) 
             response = requests.get( url )
             hitlist = response.content.decode().split('\n')
             sys.stdout.flush()
@@ -280,14 +275,11 @@ class ParallelFastFPRanking(ParallelComputeCube):
                 else:
                     i += 1
 
-class ParallelFastFPInsertKA(ParallelComputeCube):
+class ParallelTreeFPInsertKA(ParallelComputeCube):
     """
     """
 
     classification = [["ParallelCompute"]]
-
-    fptype = parameter.IntegerParameter('fptype', default=105,
-                                    help_text="Fingerprint type to use for the ranking")
 
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
@@ -300,6 +292,7 @@ class ParallelFastFPInsertKA(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
+        self.fptype = 105
         self.fp_list = list()
 
         self.calculate_fp()
@@ -311,7 +304,7 @@ class ParallelFastFPInsertKA(ParallelComputeCube):
         
         for mol in self.act_list:
             fp = oegraphsim.OEFingerPrint()
-            oegraphsim.OEMakeFP(fp, mol, self.args.fptype)
+            oegraphsim.OEMakeFP(fp, mol, self.fptype)
 
             self.fp_list.append(fp)
 
@@ -680,17 +673,17 @@ class AccumulateRankings(ComputeCube):
 
     url = parameter.StringParameter('url', default="http://10.0.1.22:4242", help_text="Url of the Restful FastROCS Server for the request")
 
-    fpintake = ObjectInputPort('fpintake')
+    tree_fpintake = ObjectInputPort('tree_fpintake')
     rocsintake = ObjectInputPort('rocsintake')
     success = ObjectOutputPort('success')
 
     def begin(self):
-        self.fp_ranking_list = list()
+        self.tree_fp_ranking_list = list()
         self.rocs_ranking_list = list()
 
     def process(self, data, port):
-        if port == 'fpintake':
-            self.fp_ranking_list.append(data[2])
+        if port == 'tree_fpintake':
+            self.tree_fp_ranking_list.append(data[2])
             self.nb_ka = len(data[0])-len(data[1][1])
         if port == 'rocsintake':
             self.rocs_ranking_list.append(data[2])
@@ -701,7 +694,7 @@ class AccumulateRankings(ComputeCube):
         url = self.args.url + '/datasets/'
         if self.dataset_id != None:
             response = requests.delete(url + str(self.dataset_id) + '/')
-        self.success.emit((self.fp_ranking_list, self.nb_ka, 'FastFP')) 
+        self.success.emit((self.tree_fp_ranking_list, self.nb_ka, 'Tree_FP')) 
         self.success.emit((self.rocs_ranking_list, self.nb_ka, 'FastROCS'))
 
 class AnalyseRankings(ComputeCube):
@@ -710,9 +703,6 @@ class AnalyseRankings(ComputeCube):
     """
 
     classification = [["Compute", "Analysis"]]
-
-    fptype = parameter.IntegerParameter('fptype', default=105,
-                                    help_text="Fingerprint type to use for the ranking")
 
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
@@ -745,10 +735,8 @@ class AnalyseRankings(ComputeCube):
         
         results_avg = pd.DataFrame()
 
-        if self.method == 'FastFP':
-            fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
-            FPType = fptypes[self.args.fptype]
-            name = 'FP_' + FPType
+        if self.method == 'Tree_FP':
+            name = 'FP_tree'
         elif self.method == 'FastROCS':
             name = 'FR'
 

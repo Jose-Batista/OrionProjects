@@ -2,8 +2,8 @@
 #!/usr/bin/env python
 
 from cubes.input_cubes import IndexInputCube
-from cubes.compute_cubes import (AccuMolList, PrepareRanking, ParallelFastFPRanking, ParallelFastROCSRanking,
-                                ParallelFastFPInsertKA, ParallelInsertKARestfulROCS, AccumulateRankings, AnalyseRankings, IndexGenerator)
+from cubes.compute_cubes import (AccuMolList, PrepareRanking, ParallelTreeFPRanking, ParallelFastROCSRanking,
+                                ParallelTreeFPInsertKA, ParallelInsertKARestfulROCS, AccumulateRankings, AnalyseRankings, IndexGenerator)
 from cubes.output_cubes import TextRankingOutputCube, PlotResults, ResultsOutputCube
 from floe.api import WorkFloe, CubeGroup
 from floe.api import OEMolOStreamCube
@@ -28,14 +28,14 @@ accu_act = AccuMolList('accumulate actives')
 prep_ranking = PrepareRanking('prepare similarity calculation')
 prep_ranking.promote_parameter('url', promoted_name='fastrocs_url')
 
-create_FPranking = ParallelFastFPRanking('create_FPranking')
+create_FPranking = ParallelTreeFPRanking('create_FPranking')
 create_FPranking.promote_parameter('url', promoted_name='fastfp_url')
 create_FPranking.promote_parameter('topn', promoted_name='topn')
 create_ROCSranking = ParallelFastROCSRanking('create_ROCSranking')
 create_ROCSranking.promote_parameter('url', promoted_name='fastrocs_url')
 create_ROCSranking.promote_parameter('topn', promoted_name='topn')
 
-insert_FPka = ParallelFastFPInsertKA('insert known actives in Fingerprint ranking')
+insert_FPka = ParallelTreeFPInsertKA('insert known actives in Fingerprint ranking')
 insert_FPka.promote_parameter('topn', promoted_name='topn')
 insert_ROCSka = ParallelInsertKARestfulROCS('insert known actives in FastROCS ranking')
 insert_ROCSka.promote_parameter('url', promoted_name='fastrocs_url')
@@ -44,18 +44,14 @@ insert_ROCSka.promote_parameter('topn', promoted_name='topn')
 accu_rankings = AccumulateRankings('accumulate rankings')
 accu_rankings.promote_parameter('url', promoted_name='fastrocs_url')
 analyse_rankings = AnalyseRankings('analyse rankings')
-analyse_rankings.promote_parameter('fptype', promoted_name='fptype')
 analyse_rankings.promote_parameter('topn', promoted_name='topn')
 
 write_ranking = TextRankingOutputCube('write ranking')
 write_ranking.promote_parameter('name', promoted_name='output_dir')
-write_ranking.promote_parameter('fptype', promoted_name='fptype')
 results_output = ResultsOutputCube('results output')
 results_output.promote_parameter('name', promoted_name='output_dir')
-results_output.promote_parameter('fptype', promoted_name='fptype')
 plot_results = PlotResults('plot results')
 plot_results.promote_parameter('name', promoted_name='output_dir')
-plot_results.promote_parameter('fptype', promoted_name='fptype')
 
 
 # Add Cubes to Floe
@@ -73,7 +69,7 @@ prep_ranking.success.connect(create_ROCSranking.data_input)
 
 create_FPranking.success.connect(insert_FPka.data_input)
 create_ROCSranking.success.connect(insert_ROCSka.data_input)
-insert_FPka.success.connect(accu_rankings.fpintake)
+insert_FPka.success.connect(accu_rankings.tree_fpintake)
 insert_ROCSka.success.connect(accu_rankings.rocsintake)
 
 accu_rankings.success.connect(analyse_rankings.intake)

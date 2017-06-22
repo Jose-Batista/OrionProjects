@@ -28,9 +28,6 @@ class TextRankingOutputCube(SinkCube):
     A cube that outputs text
     """
 
-    fptype = parameter.IntegerParameter('fptype', default=105,
-                                    help_text="Fingerprint type to use for the ranking")
-
     intake = ObjectInputPort('intake')
     name = FileOutputParameter('name',
                                required=True,
@@ -45,10 +42,8 @@ class TextRankingOutputCube(SinkCube):
         self.ranking_list = data[0]
         self.method = data[2]
 
-        if self.method == 'FastFP':
-            fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
-            self.FPType = fptypes[self.args.fptype]
-            self.name_ext = 'FP_' + self.FPType
+        if self.method == 'Tree_FP':
+            self.name_ext = 'FP_tree'
         elif self.method == 'FastROCS':
             self.name_ext = 'FR'
 
@@ -83,9 +78,6 @@ class ResultsOutputCube(SinkCube):
     A cube that outputs Results dataframe in a csv file
     """
 
-    fptype = parameter.IntegerParameter('fptype', default=105,
-                                    help_text="Fingerprint type to use for the ranking")
-
     intake = ObjectInputPort('intake')
     name = FileOutputParameter('name',
                                required=True,
@@ -102,10 +94,8 @@ class ResultsOutputCube(SinkCube):
         self.results_avg = data[0]
         self.method = data[1]
 
-        if self.method == 'FastFP':
-            fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
-            self.FPType = fptypes[self.args.fptype]
-            self.name_ext = 'FP_' + self.FPType
+        if self.method == 'Tree_FP':
+            self.name_ext = 'FP_tree'
         elif self.method == 'FastROCS':
             self.name_ext = 'FR'
 
@@ -129,9 +119,6 @@ class PlotResults(SinkCube):
 
     classification = [["Compute", "Plot"]]
 
-    fptype = parameter.IntegerParameter('fptype', default=105,
-                                    help_text="Fingerprint type to use for the ranking")
-
     intake = ObjectInputPort('intake')
     name = FileOutputParameter('name',
                                required=True,
@@ -146,10 +133,8 @@ class PlotResults(SinkCube):
         self.results_avg = data[0]
         self.method = data[1]
 
-        if self.method == 'FastFP':
-            fptypes = {102 : 'path', 104 : 'circular', 105 : 'tree'}
-            self.FPType = fptypes[self.args.fptype]
-            self.name_ext = 'FP_' + self.FPType
+        if self.method == 'Tree_FP':
+            self.name_ext = 'FP_tree'
         elif self.method == 'FastROCS':
             self.name_ext = 'FR'
 
