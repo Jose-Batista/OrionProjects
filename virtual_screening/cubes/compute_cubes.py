@@ -402,8 +402,6 @@ class ParallelFastROCSRanking(ParallelComputeCube):
 
     dataset_name = parameter.StringParameter('dataset_name', default="screening_database", help_text="Name of the screening database")
 
-    blocking = parameter.BooleanParameter('blocking', default=True, help_text="Waits for results from the server if True")
-
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
 
@@ -431,11 +429,7 @@ class ParallelFastROCSRanking(ParallelComputeCube):
                 self.dataset_identifier = int(dataset["id"])
 
         count = 0
-        if self.args.blocking:
-            results = self.run_query()
-        else:
-            self.add_query()
-            results = self.get_result()
+        results = self.run_query()
 
         cur_ranking_dict = self.create_rankings(results)
 
@@ -506,47 +500,6 @@ class ParallelFastROCSRanking(ParallelComputeCube):
         response = requests.get(self.args.url + results["results"])
         return response
 
-    def add_query(self):
-        url = self.args.url + "/queries/"
-
-        self.query = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)  
-        for idx in self.baitset[1]:
-            with oechem.oemolostream(self.query.name) as ofs:
-                oechem.OEWriteMolecule(ofs, self.act_list[idx])
-        self.query.flush()
-
-        parameters = {}
-        parameters["num_hits"] = self.args.topn
-        parameters["dataset_identifier"] = self.dataset_identifier
-
-        with open(self.query.name, "rb") as query_file:
-            response = requests.post(
-                url,
-                files={"query": query_file},
-                data=parameters
-            )
-        os.remove(self.query.name)
-        data = response.json()
-        self.query_id = data["id"]
-
-    def get_result(self):
-        cur_rank = list()
-
-        url = self.args.url + "/queries/{}/".format(self.query_id)
-        tries = 0
-        while True:
-            time.sleep(3 * tries)
-            tries += 1
-            response = requests.get(url)
-            data = response.json()
-            if data["status"]["job"] != "COMPLETED":
-                break
-
-        results_url = data["results"]
-        results_data = requests.get(self.args.url + results_url)
-
-        return results_data
-
     def create_rankings(self, results_data):
         cur_ranking_dict = dict()
         with tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False) as temp:
@@ -555,7 +508,9 @@ class ParallelFastROCSRanking(ParallelComputeCube):
             with oechem.oemolistream(temp.name) as results:
                 for mol in results.GetOEGraphMols():
                     if oechem.OEGetSDData(mol, 'QueryMol') in cur_ranking_dict.keys():
-                        cur_ranking_dict[oechem.OEGetSDData(mol, 'QueryMol')].append((oechem.OEMolToSmiles(mol), mol.GetTitle(), float(oechem.OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
+                        print([mol[1] for mol in cur_ranking_dict[oechem.OEGetSDData(mol, 'QueryMol')]])
+                        if mol.GetTitle() not in [mol[1] for mol in cur_ranking_dict[oechem.OEGetSDData(mol, 'QueryMol')]]:
+                            cur_ranking_dict[oechem.OEGetSDData(mol, 'QueryMol')].append((oechem.OEMolToSmiles(mol), mol.GetTitle(), float(oechem.OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
                     else:
                         cur_rank = list()
                         cur_rank.append((oechem.OEMolToSmiles(mol), mol.GetTitle(), float(oechem.OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
@@ -616,8 +571,6 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
 
     url = parameter.StringParameter('url', default="http://10.0.61.25:4711", help_text="Url of the Restful FastROCS Server for the request")
 
-    blocking = parameter.BooleanParameter('blocking', default=True, help_text="Waits for results from the server if True")
-
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
 
@@ -634,11 +587,7 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
 
         self.dataset_identifier = self.dataset_infos[0]
 
-        if self.args.blocking:
-            results = self.run_query()
-        else:
-            self.add_query()
-            results = self.get_result()
+        results = self.run_query()
 
         self.create_cur_scores(results)
         for tanimoto, mol in self.cur_scores.values():
@@ -702,43 +651,6 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
 
         response = requests.get(self.args.url + results["results"])
         return response
-
-    def add_queries(self):
-        url = self.args.url + "/queries/"
-        self.query_id_list = list()
-        for idx in self.baitset[1]:
-            self.query = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)  
-            with oechem.oemolostream(self.query.name) as ofs:
-                oechem.OEWriteMolecule(ofs, self.act_list[idx])
-            self.query.flush()
-
-            parameters = {}
-            parameters["num_hits"] = self.args.topn
-            
-            parameters["dataset_identifier"] = self.dataset_identifier
-            with open(self.query.name, "rb") as query_file:
-                response = requests.post(
-                    url,
-                    files={"query": query_file},
-                    data=parameters
-                )
-            os.remove(self.query.name)
-            data = response.json()
-            self.query_id_list.append(data["id"])
-
-    def get_results(self):
-
-        for query_id in self.query_id_list:
-            url = self.args.url + "/queries/{}/".format(query_id)
-            response = None
-            tries = 0
-            while response == None or data["status"]["job"] != "COMPLETED":
-                tries += 1
-                time.sleep(tries)
-                response = requests.get(url)
-                data = response.json()
-            results_url = data["results"]
-            results_data = requests.get(self.args.url + results_url)
 
     def create_cur_scores(self, results_data):
         self.cur_scores = {}
@@ -809,8 +721,7 @@ class AccumulateRankings(ComputeCube):
     def end(self):
         url = self.args.url + '/datasets/'
         if self.dataset_id != None:
-            pass
-            #response = requests.delete(url + str(self.dataset_id) + '/')
+            response = requests.delete(url + str(self.dataset_id) + '/')
         self.success.emit((self.ranking_list, self.nb_ka, self.method))
 
 class AnalyseRankings(ComputeCube):
