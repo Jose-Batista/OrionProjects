@@ -102,44 +102,9 @@ class IndexGenerator(ComputeCube):
             self.baitset.sort()
             self.success.emit((idx, self.baitset))
 
-
-class CalculateFPCube(ComputeCube):
-    """
-    A compute Cube that reads a list of Molecules and returns a list of Fingerprints
-    """
-
-    classification = [["Compute", "Fingerprint"]]
-
-    fptype = parameter.IntegerParameter('fptype', default=105,
-                                    help_text="Fingerprint type to use for the ranking")
-
-    intake = ObjectInputPort('intake')
-    success = ObjectOutputPort('success')
-
-
-    def begin(self):
-        self.fp_list = list()
-
-    def process(self, data, port):
-        for mol in data:
-            fp = oegraphsim.OEFingerPrint()
-            oegraphsim.OEMakeFP(fp, mol, self.args.fptype)
-#            bitstring = ''
-#            for b in range(0, fp.GetSize()):
-#                if fp.IsBitOn(b):
-#                    bitstring += '1'
-#                else:
-#                    bitstring += '0'
-
-            self.fp_list.append(fp)
-
-    def end(self):
-  #      for fp in self.fp_list:
-        self.success.emit(self.fp_list)
-
 class PrepareRanking(ComputeCube):
 
-    url = parameter.StringParameter('url', default="http://10.0.1.22:4242", help_text="Url of the Restful FastROCS Server for the request")
+    url = parameter.StringParameter('url', default="http://10.0.61.25:4711", help_text="Url of the Restful FastROCS Server for the request")
 
     act_input = ObjectInputPort('act_input')
     baitset_input = ObjectInputPort('baitset_input')
@@ -238,7 +203,7 @@ class ParallelFastFPRanking(ParallelComputeCube):
             cur_rank = list()
             for mol in hitlist:
                 cur_mol = mol.split(',')
-                cur_rank.append((cur_mol[0], cur_mol[1], float(cur_mol[4]), self.baitset[0], False))
+                cur_rank.append((cur_mol[1], float(cur_mol[4]), self.baitset[0], False))
             if len(self.ranking) == 0:
                 self.ranking = cur_rank
             else:
@@ -253,23 +218,23 @@ class ParallelFastFPRanking(ParallelComputeCube):
         count = 0
         id_set = set()
         while i < len(self.ranking):
-            while j < len(ranking) and ranking[j][2] > self.ranking[i][2]:
-                if ranking[j][1] not in id_set: 
-                    if count < self.args.topn or ranking[j][2] == merged_list[count-1][2]:
+            while j < len(ranking) and ranking[j][1] > self.ranking[i][1]:
+                if ranking[j][0] not in id_set: 
+                    if count < self.args.topn or ranking[j][1] == merged_list[count-1][1]:
                         merged_list.append(ranking[j])
                         count += 1
-                        id_set.add(ranking[j][1])
+                        id_set.add(ranking[j][0])
                         j += 1
                     else:
                         break
                 else:
                     j += 1
 
-            if self.ranking[i][1] not in id_set: 
-                if self.ranking[i] not in id_set and (count < self.args.topn or self.ranking[i][2] == merged_list[count-1][2]):
+            if self.ranking[i][0] not in id_set: 
+                if self.ranking[i] not in id_set and (count < self.args.topn or self.ranking[i][1] == merged_list[count-1][1]):
                     merged_list.append(self.ranking[i])  
                     count += 1
-                    id_set.add(self.ranking[i][1])
+                    id_set.add(self.ranking[i][0])
                     i += 1
                 else:
                     break
@@ -277,11 +242,11 @@ class ParallelFastFPRanking(ParallelComputeCube):
                 i += 1
 
         while j < len(ranking):
-            if ranking[j][1] not in id_set: 
-                if ranking[j] not in id_set and (count < self.args.topn or ranking[j][2] == merged_list[count-1][2]):
+            if ranking[j][0] not in id_set: 
+                if ranking[j] not in id_set and (count < self.args.topn or ranking[j][1] == merged_list[count-1][1]):
                     merged_list.append(ranking[j])
                     count += 1
-                    id_set.add(ranking[j][1])
+                    id_set.add(ranking[j][0])
                     j += 1
                 else:
                     break
@@ -292,22 +257,22 @@ class ParallelFastFPRanking(ParallelComputeCube):
 
     def update_ranking(self, mol, max_tanimoto, ka_tag):
         index = 0
-        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][2]:
+        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][1]:
             pass
         else:    
             for top_mol in self.ranking:
-                if max_tanimoto < top_mol[2]:
+                if max_tanimoto < top_mol[1]:
                     index = self.ranking.index(top_mol) + 1
                 else:
                     break
 
             upper = self.ranking[:index]
             lower = self.ranking[index:]
-            self.ranking = upper + [(oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
+            self.ranking = upper + [(mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
 
             i = self.args.topn - 1
             while i < len(self.ranking) - 1:
-                if self.ranking[i][2] != self.ranking[i + 1][2]:
+                if self.ranking[i][1] != self.ranking[i + 1][1]:
                     self.ranking = self.ranking[:i + 1]
 
                     break
@@ -376,22 +341,22 @@ class ParallelFastFPInsertKA(ParallelComputeCube):
 
     def update_ranking(self, mol, max_tanimoto, ka_tag):
         index = 0
-        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][2]:
+        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][1]:
             pass
         else:    
             for top_mol in self.ranking:
-                if max_tanimoto < top_mol[2]:
+                if max_tanimoto < top_mol[1]:
                     index = self.ranking.index(top_mol) + 1
                 else:
                     break
 
             upper = self.ranking[:index]
             lower = self.ranking[index:]
-            self.ranking = upper + [(oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
+            self.ranking = upper + [(mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
 
             i = self.args.topn - 1
             while i < len(self.ranking) - 1:
-                if self.ranking[i][2] != self.ranking[i + 1][2]:
+                if self.ranking[i][1] != self.ranking[i + 1][1]:
                     self.ranking = self.ranking[:i + 1]
 
                     break
@@ -431,15 +396,20 @@ class ParallelFastROCSRanking(ParallelComputeCube):
 
         self.log.info("start ranking baitset number {}".format(self.baitset[0]))
 
-        url = self.args.url + "/datasets/?name={}".format(self.args.dataset_name)
+        url = self.args.url + "/datasets/"
         response = requests.get(url)
         data = response.json()
-        self.dataset_identifier = int(data["id"])
+        datasets = data["datasets"]
+        for dataset in datasets:
+            if dataset["name"] == self.args.dataset_name:
+                self.dataset_identifier = int(dataset["id"])
 
         count = 0
-        self.add_queries()
-        for query_id in self.query_id_list:
-            cur_rank = self.get_result(query_id)
+        results = self.run_query()
+
+        cur_ranking_dict = self.create_rankings(results)
+
+        for cur_rank in cur_ranking_dict.values():
             if len(self.ranking) == 0:
                 self.ranking = cur_rank
             else:
@@ -447,55 +417,82 @@ class ParallelFastROCSRanking(ParallelComputeCube):
             count += 1
             self.log.info("Baitset " + str(self.baitset[0]) + " : " + str(count) +" requests processed")
 
-        sys.stdout.flush()
         self.log.info("Emitting ranking baitset " + str(self.baitset[0]))
         self.success.emit((self.act_list, self.baitset, self.ranking, self.dataset_infos)) 
 
-    def add_queries(self):
+    def run_query(self):
         url = self.args.url + "/queries/"
-        self.query_id_list = list()
+
+        self.query = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)  
         for idx in self.baitset[1]:
-            self.query = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)  
             with oechem.oemolostream(self.query.name) as ofs:
                 oechem.OEWriteMolecule(ofs, self.act_list[idx])
-            self.query.flush()
+        self.query.flush()
 
-            parameters = {}
-            parameters["num_hits"] = self.args.topn
-            
-            parameters["dataset_identifier"] = self.dataset_identifier
-            with open(self.query.name, "rb") as query_file:
-                response = requests.post(
-                    url,
-                    files={"query": query_file},
-                    data=parameters
-                )
-            os.remove(self.query.name)
-            data = response.json()
-            self.query_id_list.append(data["id"])
+        parameters = {}
+        parameters["num_hits"] = self.args.topn
+        parameters["dataset_identifier"] = self.dataset_identifier
+        parameters["cutoff"] = 0.0
+        parameters["ScaffoldCutoff"] = 1.0
+        parameters["SimFunc"] = 'Tanimoto'
+        parameters["SimType"] = 'Combo'
+        parameters["shape_only"] = False
 
-    def get_result(self, query_id):
-        cur_rank = list()
+        with open(self.query.name, "rb") as query_file:
+            response = requests.post(
+                url,
+                files={"query": query_file},
+                data=parameters
+            )
+            if not response.ok:
+                print(response.json()["error"])
+                return
 
-        url = self.args.url + "/queries/{}/".format(query_id)
-        response = None
+        os.remove(self.query.name)
+        data = response.json()
+        query_id = data["id"]
+
+        status_url = url + "{}/".format(query_id)
         tries = 0
-        while response == None or data["status"]["job"] != "COMPLETED":
-            time.sleep(9 * tries)
-            tries += 1
-            response = requests.get(url)
-            data = response.json()
-        results_url = data["results"]
-        results_data = requests.get(self.args.url + results_url)
+        while True:
+            time.sleep(tries)
+            response = requests.get(status_url)
+            if not response.ok:
+                print(response.json()["error"])
+                return
+            results = response.json()
+            status = results["status"]
+            total = int(status["total"])
+            current = int(status["current"])
 
+            if status["job"] == "FAILED":
+                print("Query {0:d} failed".format(query_id))
+                return
+
+            if(total != 0 and current >= total and
+               status["job"] == "COMPLETED"):
+                break
+
+        response = requests.get(self.args.url + results["results"])
+        return response
+
+    def create_rankings(self, results_data):
+        cur_ranking_dict = dict()
         with tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False) as temp:
             temp.write(results_data.content)
             temp.flush()
             with oechem.oemolistream(temp.name) as results:
                 for mol in results.GetOEGraphMols():
-                    cur_rank.append((oechem.OEMolToSmiles(mol), mol.GetTitle(), float(oechem.OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
+                    if oechem.OEGetSDData(mol, 'QueryMol') in cur_ranking_dict.keys():
+                        if mol.GetTitle() not in [mol[0] for mol in cur_ranking_dict[oechem.OEGetSDData(mol, 'QueryMol')]]:
+                            cur_ranking_dict[oechem.OEGetSDData(mol, 'QueryMol')].append((mol.GetTitle(), float(oechem.OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
+                    else:
+                        cur_rank = list()
+                        cur_rank.append((mol.GetTitle(), float(oechem.OEGetSDData(mol, 'TanimotoCombo')), self.baitset[0], False))
+                        cur_ranking_dict[oechem.OEGetSDData(mol, 'QueryMol')] = cur_rank
+
             os.remove(temp.name)
-        return cur_rank
+            return cur_ranking_dict
 
     def merge_ranking(self, ranking):
         merged_list = list()
@@ -504,23 +501,23 @@ class ParallelFastROCSRanking(ParallelComputeCube):
         count = 0
         id_set = set()
         while i < len(self.ranking):
-            while j < len(ranking) and ranking[j][2] > self.ranking[i][2]:
+            while j < len(ranking) and ranking[j][1] > self.ranking[i][1]:
                 if ranking[j][1] not in id_set: 
-                    if count < self.args.topn or ranking[j][2] == merged_list[count-1][2]:
+                    if count < self.args.topn or ranking[j][1] == merged_list[count-1][1]:
                         merged_list.append(ranking[j])
                         count += 1
-                        id_set.add(ranking[j][1])
+                        id_set.add(ranking[j][0])
                         j += 1
                     else:
                         break
                 else:
                     j += 1
 
-            if self.ranking[i][1] not in id_set: 
-                if self.ranking[i] not in id_set and (count < self.args.topn or self.ranking[i][2] == merged_list[count-1][2]):
+            if self.ranking[i][0] not in id_set: 
+                if self.ranking[i] not in id_set and (count < self.args.topn or self.ranking[i][1] == merged_list[count-1][1]):
                     merged_list.append(self.ranking[i])  
                     count += 1
-                    id_set.add(self.ranking[i][1])
+                    id_set.add(self.ranking[i][0])
                     i += 1
                 else:
                     break
@@ -528,11 +525,11 @@ class ParallelFastROCSRanking(ParallelComputeCube):
                 i += 1
 
         while j < len(ranking):
-            if ranking[j][1] not in id_set: 
-                if ranking[j] not in id_set and (count < self.args.topn or ranking[j][2] == merged_list[count-1][2]):
+            if ranking[j][0] not in id_set: 
+                if ranking[j] not in id_set and (count < self.args.topn or ranking[j][1] == merged_list[count-1][1]):
                     merged_list.append(ranking[j])
                     count += 1
-                    id_set.add(ranking[j][1])
+                    id_set.add(ranking[j][0])
                     j += 1
                 else:
                     break
@@ -547,7 +544,7 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
 
     classification = [["ParallelCompute"]]
 
-    url = parameter.StringParameter('url', default="http://10.0.1.22:4242", help_text="Url of the Restful FastROCS Server for the request")
+    url = parameter.StringParameter('url', default="http://10.0.61.25:4711", help_text="Url of the Restful FastROCS Server for the request")
 
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
@@ -564,83 +561,106 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
         self.log.info("processing KA for baitset : " + str(self.baitset[0]))
 
         self.dataset_identifier = self.dataset_infos[0]
-        self.add_queries()
-        self.get_results()
+
+        results = self.run_query()
+
+        self.create_cur_scores(results)
         for tanimoto, mol in self.cur_scores.values():
                 self.update_ranking(mol, tanimoto, True)
 
         self.success.emit((self.act_list, self.baitset, self.ranking, self.dataset_infos[0]))
 
-    def add_queries(self):
+    def run_query(self):
         url = self.args.url + "/queries/"
-        self.query_id_list = list()
+
+        self.query = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)  
         for idx in self.baitset[1]:
-            self.query = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)  
             with oechem.oemolostream(self.query.name) as ofs:
                 oechem.OEWriteMolecule(ofs, self.act_list[idx])
-            self.query.flush()
+        self.query.flush()
 
-            parameters = {}
-            parameters["num_hits"] = self.args.topn
-            
-            parameters["dataset_identifier"] = self.dataset_identifier
-            with open(self.query.name, "rb") as query_file:
-                response = requests.post(
-                    url,
-                    files={"query": query_file},
-                    data=parameters
-                )
-            os.remove(self.query.name)
-            data = response.json()
-            self.query_id_list.append(data["id"])
+        parameters = {}
+        parameters["num_hits"] = self.args.topn
+        parameters["dataset_identifier"] = self.dataset_identifier
+        parameters["cutoff"] = 0.0
+        parameters["ScaffoldCutoff"] = 1.0
+        parameters["SimFunc"] = 'Tanimoto'
+        parameters["SimType"] = 'Combo'
+        parameters["shape_only"] = False
 
-    def get_results(self):
+        with open(self.query.name, "rb") as query_file:
+            response = requests.post(
+                url,
+                files={"query": query_file},
+                data=parameters
+            )
+            if not response.ok:
+                print(response.json()["error"])
+                return
+
+        os.remove(self.query.name)
+        data = response.json()
+        query_id = data["id"]
+
+        status_url = url + "{}/".format(query_id)
+        tries = 0
+        while True:
+            time.sleep(tries)
+            tries += 1
+            response = requests.get(status_url)
+            if not response.ok:
+                print(response.json()["error"])
+                return
+            results = response.json()
+            status = results["status"]
+            total = int(status["total"])
+            current = int(status["current"])
+
+            if status["job"] == "FAILED":
+                print("Query {0:d} failed".format(query_id))
+                return
+
+            if(total != 0 and current >= total and
+               status["job"] == "COMPLETED"):
+                break
+
+        response = requests.get(self.args.url + results["results"])
+        return response
+
+    def create_cur_scores(self, results_data):
         self.cur_scores = {}
-
-        for query_id in self.query_id_list:
-            url = self.args.url + "/queries/{}/".format(query_id)
-            response = None
-            tries = 0
-            while response == None or data["status"]["job"] != "COMPLETED":
-                tries += 1
-                time.sleep(tries)
-                response = requests.get(url)
-                data = response.json()
-            results_url = data["results"]
-            results_data = requests.get(self.args.url + results_url)
-
-            with tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False) as temp:
-                temp.write(results_data.content)
-                temp.flush()
-                with oechem.oemolistream(temp.name) as results:
-                    for mol in results.GetOEGraphMols():
-                        if self.dataset_infos[1][mol.GetTitle()] not in self.baitset[1]:
-                            tanimoto_combo = float(oechem.OEGetSDData(mol, "TanimotoCombo"))
-                            if mol.GetTitle() in self.cur_scores.keys():
-                                if self.cur_scores[mol.GetTitle()][0] < tanimoto_combo:
-                                    self.cur_scores[mol.GetTitle()] = (tanimoto_combo, mol.CreateCopy())
-                            else:
+        with tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False) as temp:
+            temp.write(results_data.content)
+            temp.flush()
+            with oechem.oemolistream(temp.name) as results:
+                for mol in results.GetOEGraphMols():
+                    if self.dataset_infos[1][mol.GetTitle()] not in self.baitset[1]:
+                        tanimoto_combo = float(oechem.OEGetSDData(mol, "TanimotoCombo"))
+                        if mol.GetTitle() in self.cur_scores.keys():
+                            if self.cur_scores[mol.GetTitle()][0] < tanimoto_combo:
                                 self.cur_scores[mol.GetTitle()] = (tanimoto_combo, mol.CreateCopy())
-                os.remove(temp.name)
+                        else:
+                            self.cur_scores[mol.GetTitle()] = (tanimoto_combo, mol.CreateCopy())
+            os.remove(temp.name)
 
     def update_ranking(self, mol, max_tanimoto, ka_tag):
         index = 0
-        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][2]:
+        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][1]:
             pass
         else:    
             for top_mol in self.ranking:
-                if max_tanimoto < top_mol[2]:
+                if max_tanimoto < top_mol[1]:
                     index = self.ranking.index(top_mol) + 1
                 else:
                     break
 
             upper = self.ranking[:index]
             lower = self.ranking[index:]
-            self.ranking = upper + [(oechem.OEMolToSmiles(mol), mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
+            self.ranking = upper + [(mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
 
             i = self.args.topn - 1
             while i < len(self.ranking) - 1:
-                if self.ranking[i][2] != self.ranking[i + 1][2]:
+                if self.ranking[i][1] != self.ranking[i + 1][1]:
                     self.ranking = self.ranking[:i + 1]
 
                     break
@@ -715,7 +735,7 @@ class AnalyseRankings(ComputeCube):
             count_ka = 0
             for row, mol in enumerate(ranking):
                 count += 1
-                if mol[4] == 1:
+                if mol[3] == 1:
                     count_ka += 1
                 rr = 100 * count_ka/self.nb_ka
                 hr = 100 * count_ka/count

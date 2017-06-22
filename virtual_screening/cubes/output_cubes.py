@@ -61,11 +61,11 @@ class TextRankingOutputCube(SinkCube):
         self.ranking_list = data[0]
 
         for i, ranking in enumerate(self.ranking_list):
-            text = "\n" + "Set n°" + str(ranking[0][3]) + "\n"
+            text = "\n" + "Set n°" + str(ranking[0][2]) + "\n"
             text = text.encode("utf-8")
             self.stream.write(text)
             for mol in ranking:
-                mol_data = str(mol[3]) + " " + mol[1] + " " + str(mol[2]) + " " + str(mol[4]) +  "\n"
+                mol_data = str(mol[2]) + " " + mol[0] + " " + str(mol[1]) + " " + str(mol[3]) +  "\n"
                 mol_data = mol_data.encode("utf-8")
                 self.stream.write(mol_data)
 
