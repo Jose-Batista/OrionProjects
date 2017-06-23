@@ -125,53 +125,70 @@ class PlotResults(SinkCube):
                                description='The name of the output file')
 
     def begin(self):
+        self.results = pd.DataFrame()
         self.in_orion = config_from_env() is not None
         if self.in_orion:
             self.stream = tempfile.NamedTemporaryFile()
 
     def write(self, data, port):
-        self.results_avg = data[0]
+        self.result = data[0]
         self.method = data[1]
 
-        if self.method == 'Tree_FP':
-            self.name_ext = 'FP_tree'
-        elif self.method == 'FastROCS':
-            self.name_ext = 'FR'
+        self.results = pd.concat([self.results, self.result], axis = 1)
 
-        self.results_avg.plot(y = 'Average RR ' + self.name_ext, label = "Average RR" + self.name_ext)
-        plt.xlabel('Top Rank Molecules')
-        plt.ylabel('Rate (%)')
-        plt.legend( loc='best')
-        plt.title("Average RR Rates " + self.name_ext)
-        if self.in_orion:
-            plt.savefig(self.stream.name, format="svg")
-            self.stream.seek(0)
-            self.stream.flush()
-            name = self.args.name + "_Average_RR_plot_" + self.name_ext + ".svg"
-            resp = upload_file(name, self.stream.name)
-            self.log.info("Created result file {} with ID {}".format(name, resp['id']))
-        else:
-            path = self.args.name + "Average_RR_plot_" + self.name_ext + ".svg"
-            plt.savefig(path)
-
-        self.results_avg.plot(y = 'Average HR ' + self.name_ext, label = "Average HR" + self.name_ext)
-        plt.xlabel('Top Rank Molecules')
-        plt.ylabel('Rate (%)')
-        plt.legend( loc='best')
-        plt.title("Average HR Rates " + self.name_ext)
-        if self.in_orion:
-            plt.savefig(self.stream.name, format="svg")
-            self.stream.seek(0)
-            self.stream.flush()
-            name = self.args.name + "_Average_HR_plot_" + self.name_ext + ".svg"
-            resp = upload_file(name, self.stream.name)
-            self.log.info("Created result file {} with ID {}".format(name, resp['id']))
-        else:
-            path = self.args.name + "Average_HR_plot_" + self.name_ext + ".svg"
-            plt.savefig(path)
+#        if self.method == 'Tree_FP':
+#            self.name_ext = 'FP_tree'
+#        elif self.method == 'FastROCS':
+#            self.name_ext = 'FR'
+#
+#        self.results_avg.plot(y = 'Average RR ' + self.name_ext, label = "Average RR" + self.name_ext)
+#        plt.xlabel('Top Rank Molecules')
+#        plt.ylabel('Rate (%)')
+#        plt.legend( loc='best')
+#        plt.title("Average RR Rates " + self.name_ext)
+#        if self.in_orion:
+#            plt.savefig(self.stream.name, format="svg")
+#            self.stream.seek(0)
+#            self.stream.flush()
+#            name = self.args.name + "_Average_RR_plot_" + self.name_ext + ".svg"
+#            resp = upload_file(name, self.stream.name)
+#            self.log.info("Created result file {} with ID {}".format(name, resp['id']))
+#        else:
+#            path = self.args.name + "Average_RR_plot_" + self.name_ext + ".svg"
+#            plt.savefig(path)
+#
+#        self.results_avg.plot(y = 'Average HR ' + self.name_ext, label = "Average HR" + self.name_ext)
+#        plt.xlabel('Top Rank Molecules')
+#        plt.ylabel('Rate (%)')
+#        plt.legend( loc='best')
+#        plt.title("Average HR Rates " + self.name_ext)
  
-        #plt.show()
+    def end(self):
+        fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(9,8))
+        plt.subplots_adjust(hspace=0.4)
 
+        self.results.plot(ax=axes[0], y = [col for col in self.results.columns if 'RR' in col])
+        axes[0].set_xlabel('Top Rank Molecules')
+        axes[0].set_ylabel('Rate (%)')
+        axes[0].set_title("Average RR Rates") 
+        axes[0].legend([col.split(" ")[2] for col in self.results.columns if ('RR' in col)])
+        
+        self.results.plot(ax=axes[1], y = [col for col in self.results.columns if 'HR' in col])
+        axes[1].set_xlabel('Top Rank Molecules')
+        axes[1].set_ylabel('Rate (%)')
+        axes[1].set_title("Average HR Rates") 
+        axes[1].legend([col.split(" ")[2] for col in self.results.columns if ('HR' in col)])
+
+        if self.in_orion:
+            plt.savefig(self.stream.name, format="svg")
+            self.stream.seek(0)
+            self.stream.flush()
+            name = self.args.name + "_Average_plot" + ".svg"
+            resp = upload_file(name, self.stream.name)
+            self.log.info("Created result file {} with ID {}".format(name, resp['id']))
+        else:
+            path = self.args.name + "Average_plot" + ".svg"
+            plt.savefig(path)
 
 class IndexOutputCube(SinkCube):
     """
