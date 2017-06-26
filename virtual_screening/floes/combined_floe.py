@@ -74,8 +74,8 @@ plot_results.promote_parameter('name', promoted_name='output_dir')
 #    job.add_group(group)
 #
 ## Add Cubes to Floe
-#job.add_cubes(act_reader, index_generator, accu_act, prep_ranking, create_treeFPranking, create_pathFPranking, create_circularFPranking, create_ROCSranking, 
-#              insert_treeFPka, insert_pathFPka, insert_circularFPka, insert_ROCSka, accu_rankings, analyse_rankings, results_output, plot_results, write_ranking)
+job.add_cubes(act_reader, index_generator, accu_act, prep_ranking, create_treeFPranking, create_pathFPranking, create_circularFPranking, create_ROCSranking, 
+              insert_treeFPka, insert_pathFPka, insert_circularFPka, insert_ROCSka, accu_rankings, analyse_rankings, results_output, plot_results, write_ranking)
 
 # Connect ports
 act_reader.success.connect(accu_act.intake)
