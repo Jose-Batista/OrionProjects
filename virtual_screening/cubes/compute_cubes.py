@@ -360,6 +360,402 @@ class ParallelTreeFPInsertKA(ParallelComputeCube):
     def end(self):
         pass
 
+class ParallelPathFPRanking(ParallelComputeCube):
+    """
+    A compute Cube that receives a Molecule and a list of Fingerprints with a baitset of indices
+    and returns the max Similarity value of the Molecule against the Fingerprints
+    """
+
+    classification = [["Compute", "Fingerprint", "Similarity"]]
+
+    url = parameter.StringParameter('url', default="http://10.0.62.124:8081", help_text="Url of the FastFingerPrint Server for the request")
+
+    topn = parameter.IntegerParameter('topn', default=100,
+                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
+
+    data_input = ObjectInputPort('data_input')
+    success = ObjectOutputPort('success')
+
+
+    def begin(self):
+        pass
+
+    def process(self, data, port):
+
+        self.act_list = data[0]
+        self.baitset = data[1]
+        self.ranking = data[2]
+        for idx in self.baitset[1]:
+            smiles = oechem.OEMolToSmiles(self.act_list[idx])
+            safe_smiles = parse.quote(smiles)
+            url = "%s/%s/hitlist?smiles=%s&oformat=csv&maxhits=%d" %(self.args.url, 'path_db', safe_smiles, self.args.topn) 
+            response = requests.get( url )
+            hitlist = response.content.decode().split('\n')
+            sys.stdout.flush()
+            hitlist.pop(0)
+            hitlist.pop()
+            cur_rank = list()
+            for mol in hitlist:
+                cur_mol = mol.split(',')
+                cur_rank.append((cur_mol[1], float(cur_mol[5]), self.baitset[0], False))
+            if len(self.ranking) == 0:
+                self.ranking = cur_rank
+            else:
+                self.merge_ranking(cur_rank)
+
+        self.success.emit((self.act_list, self.baitset, self.ranking))
+
+    def merge_ranking(self, ranking):
+        merged_list = list()
+        i = 0
+        j = 0
+        count = 0
+        id_set = set()
+        while i < len(self.ranking):
+            while j < len(ranking) and ranking[j][1] > self.ranking[i][1]:
+                if ranking[j][0] not in id_set: 
+                    if count < self.args.topn or ranking[j][1] == merged_list[count-1][1]:
+                        merged_list.append(ranking[j])
+                        count += 1
+                        id_set.add(ranking[j][0])
+                        j += 1
+                    else:
+                        break
+                else:
+                    j += 1
+
+            if self.ranking[i][0] not in id_set: 
+                if self.ranking[i] not in id_set and (count < self.args.topn or self.ranking[i][1] == merged_list[count-1][1]):
+                    merged_list.append(self.ranking[i])  
+                    count += 1
+                    id_set.add(self.ranking[i][0])
+                    i += 1
+                else:
+                    break
+            else:
+                i += 1
+
+        while j < len(ranking):
+            if ranking[j][0] not in id_set: 
+                if ranking[j] not in id_set and (count < self.args.topn or ranking[j][1] == merged_list[count-1][1]):
+                    merged_list.append(ranking[j])
+                    count += 1
+                    id_set.add(ranking[j][0])
+                    j += 1
+                else:
+                    break
+            else:
+                j += 1
+
+        self.ranking = merged_list
+
+    def update_ranking(self, mol, max_tanimoto, ka_tag):
+        index = 0
+        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][1]:
+            pass
+        else:    
+            for top_mol in self.ranking:
+                if max_tanimoto < top_mol[1]:
+                    index = self.ranking.index(top_mol) + 1
+                else:
+                    break
+
+            upper = self.ranking[:index]
+            lower = self.ranking[index:]
+            self.ranking = upper + [(mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
+
+            i = self.args.topn - 1
+            while i < len(self.ranking) - 1:
+                if self.ranking[i][1] != self.ranking[i + 1][1]:
+                    self.ranking = self.ranking[:i + 1]
+
+                    break
+                else:
+                    i += 1
+
+class ParallelPathFPInsertKA(ParallelComputeCube):
+    """
+    """
+
+    classification = [["ParallelCompute"]]
+
+    topn = parameter.IntegerParameter('topn', default=100,
+                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
+
+    data_input = ObjectInputPort('data_input')
+    success = ObjectOutputPort('success')
+
+    def process(self, data, port):
+        
+        self.act_list = data[0]
+        self.baitset = data[1]
+        self.ranking = data[2]
+        self.fptype = 102
+        self.fp_list = list()
+
+        self.calculate_fp()
+        self.insert_known_actives()
+
+        self.success.emit((self.act_list, self.baitset, self.ranking)) 
+
+    def calculate_fp(self):
+        
+        for mol in self.act_list:
+            fp = oegraphsim.OEFingerPrint()
+            oegraphsim.OEMakeFP(fp, mol, self.fptype)
+
+            self.fp_list.append(fp)
+
+    def insert_known_actives(self):
+
+        c = 0
+        for idx in self.baitset[1]:
+            while c < idx:
+                ka_fp = self.fp_list[c]
+                simval = self.calc_sim_val(ka_fp)
+                self.update_ranking(self.act_list[c], simval, True)
+
+                c += 1
+            c += 1
+        while c < len(self.act_list):
+            ka_fp = self.fp_list[c]
+            simval = self.calc_sim_val(ka_fp)
+            self.update_ranking(self.act_list[c], simval, True)
+            c += 1
+
+    def calc_sim_val(self, fp):
+        maxval = 0
+        for idx in self.baitset[1]:
+            tanimoto = oechem.OETanimoto(fp, self.fp_list[idx])
+            if tanimoto > maxval:
+                maxval = tanimoto
+        return maxval
+
+    def update_ranking(self, mol, max_tanimoto, ka_tag):
+        index = 0
+        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][1]:
+            pass
+        else:    
+            for top_mol in self.ranking:
+                if max_tanimoto < top_mol[1]:
+                    index = self.ranking.index(top_mol) + 1
+                else:
+                    break
+
+            upper = self.ranking[:index]
+            lower = self.ranking[index:]
+            self.ranking = upper + [(mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
+
+            i = self.args.topn - 1
+            while i < len(self.ranking) - 1:
+                if self.ranking[i][1] != self.ranking[i + 1][1]:
+                    self.ranking = self.ranking[:i + 1]
+
+                    break
+                else:
+                    i += 1
+
+    def end(self):
+        pass
+
+class ParallelCircularFPRanking(ParallelComputeCube):
+    """
+    A compute Cube that receives a Molecule and a list of Fingerprints with a baitset of indices
+    and returns the max Similarity value of the Molecule against the Fingerprints
+    """
+
+    classification = [["Compute", "Fingerprint", "Similarity"]]
+
+    url = parameter.StringParameter('url', default="http://10.0.62.124:8081", help_text="Url of the FastFingerPrint Server for the request")
+
+    topn = parameter.IntegerParameter('topn', default=100,
+                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
+
+    data_input = ObjectInputPort('data_input')
+    success = ObjectOutputPort('success')
+
+
+    def begin(self):
+        pass
+
+    def process(self, data, port):
+
+        self.act_list = data[0]
+        self.baitset = data[1]
+        self.ranking = data[2]
+        for idx in self.baitset[1]:
+            smiles = oechem.OEMolToSmiles(self.act_list[idx])
+            safe_smiles = parse.quote(smiles)
+            url = "%s/%s/hitlist?smiles=%s&oformat=csv&maxhits=%d" %(self.args.url, 'circular_db', safe_smiles, self.args.topn) 
+            response = requests.get( url )
+            hitlist = response.content.decode().split('\n')
+            sys.stdout.flush()
+            hitlist.pop(0)
+            hitlist.pop()
+            cur_rank = list()
+            for mol in hitlist:
+                cur_mol = mol.split(',')
+                cur_rank.append((cur_mol[1], float(cur_mol[5]), self.baitset[0], False))
+            if len(self.ranking) == 0:
+                self.ranking = cur_rank
+            else:
+                self.merge_ranking(cur_rank)
+
+        self.success.emit((self.act_list, self.baitset, self.ranking))
+
+    def merge_ranking(self, ranking):
+        merged_list = list()
+        i = 0
+        j = 0
+        count = 0
+        id_set = set()
+        while i < len(self.ranking):
+            while j < len(ranking) and ranking[j][1] > self.ranking[i][1]:
+                if ranking[j][0] not in id_set: 
+                    if count < self.args.topn or ranking[j][1] == merged_list[count-1][1]:
+                        merged_list.append(ranking[j])
+                        count += 1
+                        id_set.add(ranking[j][0])
+                        j += 1
+                    else:
+                        break
+                else:
+                    j += 1
+
+            if self.ranking[i][0] not in id_set: 
+                if self.ranking[i] not in id_set and (count < self.args.topn or self.ranking[i][1] == merged_list[count-1][1]):
+                    merged_list.append(self.ranking[i])  
+                    count += 1
+                    id_set.add(self.ranking[i][0])
+                    i += 1
+                else:
+                    break
+            else:
+                i += 1
+
+        while j < len(ranking):
+            if ranking[j][0] not in id_set: 
+                if ranking[j] not in id_set and (count < self.args.topn or ranking[j][1] == merged_list[count-1][1]):
+                    merged_list.append(ranking[j])
+                    count += 1
+                    id_set.add(ranking[j][0])
+                    j += 1
+                else:
+                    break
+            else:
+                j += 1
+
+        self.ranking = merged_list
+
+    def update_ranking(self, mol, max_tanimoto, ka_tag):
+        index = 0
+        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][1]:
+            pass
+        else:    
+            for top_mol in self.ranking:
+                if max_tanimoto < top_mol[1]:
+                    index = self.ranking.index(top_mol) + 1
+                else:
+                    break
+
+            upper = self.ranking[:index]
+            lower = self.ranking[index:]
+            self.ranking = upper + [(mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
+
+            i = self.args.topn - 1
+            while i < len(self.ranking) - 1:
+                if self.ranking[i][1] != self.ranking[i + 1][1]:
+                    self.ranking = self.ranking[:i + 1]
+
+                    break
+                else:
+                    i += 1
+
+class ParallelCircularFPInsertKA(ParallelComputeCube):
+    """
+    """
+
+    classification = [["ParallelCompute"]]
+
+    topn = parameter.IntegerParameter('topn', default=100,
+                                    help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
+
+    data_input = ObjectInputPort('data_input')
+    success = ObjectOutputPort('success')
+
+    def process(self, data, port):
+        
+        self.act_list = data[0]
+        self.baitset = data[1]
+        self.ranking = data[2]
+        self.fptype = 104
+        self.fp_list = list()
+
+        self.calculate_fp()
+        self.insert_known_actives()
+
+        self.success.emit((self.act_list, self.baitset, self.ranking)) 
+
+    def calculate_fp(self):
+        
+        for mol in self.act_list:
+            fp = oegraphsim.OEFingerPrint()
+            oegraphsim.OEMakeFP(fp, mol, self.fptype)
+
+            self.fp_list.append(fp)
+
+    def insert_known_actives(self):
+
+        c = 0
+        for idx in self.baitset[1]:
+            while c < idx:
+                ka_fp = self.fp_list[c]
+                simval = self.calc_sim_val(ka_fp)
+                self.update_ranking(self.act_list[c], simval, True)
+
+                c += 1
+            c += 1
+        while c < len(self.act_list):
+            ka_fp = self.fp_list[c]
+            simval = self.calc_sim_val(ka_fp)
+            self.update_ranking(self.act_list[c], simval, True)
+            c += 1
+
+    def calc_sim_val(self, fp):
+        maxval = 0
+        for idx in self.baitset[1]:
+            tanimoto = oechem.OETanimoto(fp, self.fp_list[idx])
+            if tanimoto > maxval:
+                maxval = tanimoto
+        return maxval
+
+    def update_ranking(self, mol, max_tanimoto, ka_tag):
+        index = 0
+        if len(self.ranking) >= self.args.topn and max_tanimoto < self.ranking[len(self.ranking)-1][1]:
+            pass
+        else:    
+            for top_mol in self.ranking:
+                if max_tanimoto < top_mol[1]:
+                    index = self.ranking.index(top_mol) + 1
+                else:
+                    break
+
+            upper = self.ranking[:index]
+            lower = self.ranking[index:]
+            self.ranking = upper + [(mol.GetTitle(), max_tanimoto, self.baitset[0], ka_tag)] + lower
+
+            i = self.args.topn - 1
+            while i < len(self.ranking) - 1:
+                if self.ranking[i][1] != self.ranking[i + 1][1]:
+                    self.ranking = self.ranking[:i + 1]
+
+                    break
+                else:
+                    i += 1
+
+    def end(self):
+        pass
+
 class ParallelFastROCSRanking(ParallelComputeCube):
     """
     A compute Cube that receives a Molecule a baitset of indices and a FastROCSServer address
@@ -674,16 +1070,26 @@ class AccumulateRankings(ComputeCube):
     url = parameter.StringParameter('url', default="http://10.0.1.22:4242", help_text="Url of the Restful FastROCS Server for the request")
 
     tree_fpintake = ObjectInputPort('tree_fpintake')
+    path_fpintake = ObjectInputPort('path_fpintake')
+    circular_fpintake = ObjectInputPort('circular_fpintake')
     rocsintake = ObjectInputPort('rocsintake')
     success = ObjectOutputPort('success')
 
     def begin(self):
         self.tree_fp_ranking_list = list()
+        self.path_fp_ranking_list = list()
+        self.circular_fp_ranking_list = list()
         self.rocs_ranking_list = list()
 
     def process(self, data, port):
         if port == 'tree_fpintake':
             self.tree_fp_ranking_list.append(data[2])
+            self.nb_ka = len(data[0])-len(data[1][1])
+        if port == 'path_fpintake':
+            self.path_fp_ranking_list.append(data[2])
+            self.nb_ka = len(data[0])-len(data[1][1])
+        if port == 'circular_fpintake':
+            self.circular_fp_ranking_list.append(data[2])
             self.nb_ka = len(data[0])-len(data[1][1])
         if port == 'rocsintake':
             self.rocs_ranking_list.append(data[2])
@@ -695,6 +1101,8 @@ class AccumulateRankings(ComputeCube):
         if self.dataset_id != None:
             response = requests.delete(url + str(self.dataset_id) + '/')
         self.success.emit((self.tree_fp_ranking_list, self.nb_ka, 'Tree_FP')) 
+        self.success.emit((self.path_fp_ranking_list, self.nb_ka, 'Path_FP')) 
+        self.success.emit((self.circular_fp_ranking_list, self.nb_ka, 'Circular_FP')) 
         self.success.emit((self.rocs_ranking_list, self.nb_ka, 'FastROCS'))
 
 class AnalyseRankings(ComputeCube):
@@ -737,6 +1145,10 @@ class AnalyseRankings(ComputeCube):
 
         if self.method == 'Tree_FP':
             name = 'FP_tree'
+        if self.method == 'Path_FP':
+            name = 'FP_path'
+        if self.method == 'Circular_FP':
+            name = 'FP_circular'
         elif self.method == 'FastROCS':
             name = 'FR'
 

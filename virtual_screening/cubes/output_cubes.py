@@ -44,6 +44,10 @@ class TextRankingOutputCube(SinkCube):
 
         if self.method == 'Tree_FP':
             self.name_ext = 'FP_tree'
+        if self.method == 'Path_FP':
+            self.name_ext = 'FP_path'
+        if self.method == 'Circular_FP':
+            self.name_ext = 'FP_circular'
         elif self.method == 'FastROCS':
             self.name_ext = 'FR'
 
@@ -96,6 +100,10 @@ class ResultsOutputCube(SinkCube):
 
         if self.method == 'Tree_FP':
             self.name_ext = 'FP_tree'
+        if self.method == 'Path_FP':
+            self.name_ext = 'FP_path'
+        if self.method == 'Circular_FP':
+            self.name_ext = 'FP_circular'
         elif self.method == 'FastROCS':
             self.name_ext = 'FR'
 

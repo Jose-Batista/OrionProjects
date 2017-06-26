@@ -65,11 +65,11 @@ index_generator.success.connect(prep_sim_calc.baitset_input)
 
 prep_sim_calc.success.connect(calc_sim.data_input)
 calc_sim.success.connect(insert_known_actives.data_input)
-insert_known_actives.success.connect(accu_rankings.intake)
+insert_known_actives.success.connect(accu_rankings.tree_fpintake)
 
 accu_rankings.success.connect(analyse_rankings.intake)
 
-accu_rankings.success.connect(write_ranking.tree_fpintake)
+accu_rankings.success.connect(write_ranking.intake)
 analyse_rankings.success.connect(results_output.intake)
 analyse_rankings.success.connect(plot_results.intake)
 #update_ranking.success.connect(write_ranking.intake)
