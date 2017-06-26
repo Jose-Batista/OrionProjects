@@ -391,7 +391,6 @@ class ParallelPathFPRanking(ParallelComputeCube):
             url = "%s/%s/hitlist?smiles=%s&oformat=csv&maxhits=%d" %(self.args.url, 'path_db', safe_smiles, self.args.topn) 
             response = requests.get( url )
             hitlist = response.content.decode().split('\n')
-            sys.stdout.flush()
             hitlist.pop(0)
             hitlist.pop()
             cur_rank = list()
