@@ -29,7 +29,7 @@ output_cube.promote_parameter('name', promoted_name='name')
 job.add_cubes(input_cube, request_cube, accu_cube, output_cube)
 
 input_cube.success.connect(request_cube.data_input)
-request_cube.success.connect(accu_cube.intake)
+request_cube.success.connect(accu_cube.rocsintake)
 accu_cube.success.connect(output_cube.intake)
 
 # If called from command line, run the floe

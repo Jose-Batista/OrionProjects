@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 from cubes.input_cubes import IndexInputCube, OEMolTriggeredIStreamCube
-from cubes.compute_cubes import (AccuMolList, ParallelFastFPRanking, IndexGenerator,
-                                PrepareRanking, ParallelFastFPInsertKA, AccumulateRankings, AnalyseRankings)
+from cubes.compute_cubes import (AccuMolList, ParallelTreeFPRanking, IndexGenerator,
+                                PrepareRanking, ParallelTreeFPInsertKA, AccumulateRankings, AnalyseRankings)
 from cubes.output_cubes import TextRankingOutputCube, PlotResults, ResultsOutputCube
 from floe.api import WorkFloe, CubeGroup
 from floe.api import OEMolOStreamCube
@@ -26,32 +26,25 @@ accu_act = AccuMolList('accumulate actives')
 #calc_fp = CalculateFPCube('calculate fingerprints')
 
 prep_sim_calc = PrepareRanking('prepare similarity calculation')
-prep_sim_calc.promote_parameter('method', promoted_name='method')
-calc_sim = ParallelFastFPRanking('calculate similarity value')
+calc_sim = ParallelTreeFPRanking('calculate similarity value')
 calc_sim.promote_parameter('url', promoted_name='url')
-calc_sim.promote_parameter('fptype', promoted_name='fptype')
 calc_sim.promote_parameter('topn', promoted_name='topn')
 #calc_sim.promote_parameter('data_in', promoted_name='screen_db')
 
-insert_known_actives = ParallelFastFPInsertKA('insert known actives')
-insert_known_actives.promote_parameter('fptype', promoted_name='fptype')
+insert_known_actives = ParallelTreeFPInsertKA('insert known actives')
 insert_known_actives.promote_parameter('topn', promoted_name='topn')
 #update_ranking = ParallelUpdateRanking('update ranking')
 
 accu_rankings = AccumulateRankings('accumulate rankings')
 analyse_rankings = AnalyseRankings('analyse rankings')
-analyse_rankings.promote_parameter('fptype', promoted_name='fptype')
 analyse_rankings.promote_parameter('topn', promoted_name='topn')
 
 write_ranking = TextRankingOutputCube('write ranking')
 write_ranking.promote_parameter('name', promoted_name='output_dir')
-write_ranking.promote_parameter('fptype', promoted_name='fptype')
 results_output = ResultsOutputCube('results output')
 results_output.promote_parameter('name', promoted_name='output_dir')
-results_output.promote_parameter('fptype', promoted_name='fptype')
 plot_results = PlotResults('plot results')
 plot_results.promote_parameter('name', promoted_name='output_dir')
-plot_results.promote_parameter('fptype', promoted_name='fptype')
 
 # Create Cube group
 #group = CubeGroup(cubes=[prep_sim_calc, calc_sim])
@@ -76,7 +69,7 @@ insert_known_actives.success.connect(accu_rankings.intake)
 
 accu_rankings.success.connect(analyse_rankings.intake)
 
-accu_rankings.success.connect(write_ranking.intake)
+accu_rankings.success.connect(write_ranking.tree_fpintake)
 analyse_rankings.success.connect(results_output.intake)
 analyse_rankings.success.connect(plot_results.intake)
 #update_ranking.success.connect(write_ranking.intake)
