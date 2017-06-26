@@ -187,7 +187,7 @@ class ParallelTreeFPRanking(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
-        time.sleep(2)
+        time.sleep(5)
         for idx in self.baitset[1]:
             smiles = oechem.OEMolToSmiles(self.act_list[idx])
             safe_smiles = parse.quote(smiles)
@@ -386,7 +386,7 @@ class ParallelPathFPRanking(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
-        time.sleep(2)
+        time.sleep(5)
         for idx in self.baitset[1]:
             smiles = oechem.OEMolToSmiles(self.act_list[idx])
             safe_smiles = parse.quote(smiles)
@@ -584,7 +584,7 @@ class ParallelCircularFPRanking(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
-        time.sleep(2)
+        time.sleep(5)
         for idx in self.baitset[1]:
             smiles = oechem.OEMolToSmiles(self.act_list[idx])
             safe_smiles = parse.quote(smiles)
