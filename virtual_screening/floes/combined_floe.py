@@ -63,6 +63,14 @@ results_output.promote_parameter('name', promoted_name='output_dir')
 plot_results = PlotResults('plot results')
 plot_results.promote_parameter('name', promoted_name='output_dir')
 
+# Create Cube group
+tree_group = ParallelCubeGroup(cubes=[create_treeFPranking, insert_treeFPka])
+path_group = ParallelCubeGroup(cubes=[create_pathFPranking, insert_pathFPka])
+circular_group = ParallelCubeGroup(cubes=[create_circularFPranking, insert_circularFPka])
+rocs_group = ParallelCubeGroup(cubes=[create_ROCSranking, insert_ROCSka ])
+
+# Add Groups to Workfloe
+job.add_group(tree_group, path_group, circular_group, rocs_group)
 
 # Add Cubes to Floe
 job.add_cubes(act_reader, index_generator, accu_act, prep_ranking, create_treeFPranking, create_pathFPranking, create_circularFPranking, create_ROCSranking, 
