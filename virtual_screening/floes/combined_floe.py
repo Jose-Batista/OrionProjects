@@ -40,6 +40,7 @@ create_circularFPranking.promote_parameter('topn', promoted_name='topn')
 create_ROCSranking = ParallelFastROCSRanking('create_ROCSranking')
 create_ROCSranking.promote_parameter('url', promoted_name='fastrocs_url')
 create_ROCSranking.promote_parameter('topn', promoted_name='topn')
+create_ROCSranking.promote_parameter('wait', promoted_name='wait')
 
 insert_treeFPka = ParallelTreeFPInsertKA('insert known actives in Tree Fingerprint ranking')
 insert_treeFPka.promote_parameter('topn', promoted_name='topn')

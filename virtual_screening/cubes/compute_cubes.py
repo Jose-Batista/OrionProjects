@@ -770,6 +770,9 @@ class ParallelFastROCSRanking(ParallelComputeCube):
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
 
+    wait = parameter.IntegerParameter('wait', default=1,
+                                    help_text="waiting time before trying a new request")
+
     data_input = ObjectInputPort('data_input')
     success = ObjectOutputPort('success')
 
@@ -844,7 +847,7 @@ class ParallelFastROCSRanking(ParallelComputeCube):
         status_url = url + "{}/".format(query_id)
         tries = 0
         while True:
-            time.sleep(3*tries)
+            time.sleep(self.args.wait*tries)
             response = requests.get(status_url)
             if not response.ok:
                 print(response.json()["error"])
