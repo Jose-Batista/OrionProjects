@@ -5,7 +5,7 @@ from cubes.input_cubes import IndexInputCube
 from cubes.compute_cubes import (AccuMolList, PrepareRanking, ParallelTreeFPRanking, ParallelPathFPRanking, ParallelCircularFPRanking, ParallelFastROCSRanking,
                                 ParallelTreeFPInsertKA, ParallelPathFPInsertKA, ParallelCircularFPInsertKA, ParallelInsertKARestfulROCS, AccumulateRankings, AnalyseRankings, IndexGenerator)
 from cubes.output_cubes import TextRankingOutputCube, PlotResults, ResultsOutputCube
-from floe.api import WorkFloe, CubeGroup
+from floe.api import WorkFloe, CubeGroup, ParallelCubeGroup
 from floe.api import OEMolOStreamCube
 from floe.api import OEMolIStreamCube
 
