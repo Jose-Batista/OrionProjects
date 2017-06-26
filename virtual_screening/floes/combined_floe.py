@@ -70,7 +70,8 @@ circular_group = ParallelCubeGroup(cubes=[create_circularFPranking, insert_circu
 rocs_group = ParallelCubeGroup(cubes=[create_ROCSranking, insert_ROCSka ])
 
 # Add Groups to Workfloe
-job.add_group(tree_group, path_group, circular_group, rocs_group)
+for group in [tree_group, path_group, circular_group, rocs_group]:
+    job.add_group(group)
 
 # Add Cubes to Floe
 job.add_cubes(act_reader, index_generator, accu_act, prep_ranking, create_treeFPranking, create_pathFPranking, create_circularFPranking, create_ROCSranking, 
