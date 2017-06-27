@@ -1107,6 +1107,96 @@ class AccumulateRankings(ComputeCube):
         self.success.emit((self.circular_fp_ranking_list, self.nb_ka, 'Circular_FP')) 
         self.success.emit((self.rocs_ranking_list, self.nb_ka, 'FastROCS'))
 
+class AccumulateRankingsTree(ComputeCube):
+    """
+    A compute Cube that receives rankings and assemble them in a list
+    """
+
+    classification = [["Compute", "Accumulator"]]
+
+    tree_fpintake = ObjectInputPort('tree_fpintake')
+    success = ObjectOutputPort('success')
+
+    def begin(self):
+        self.tree_fp_ranking_list = list()
+
+    def process(self, data, port):
+        if port == 'tree_fpintake':
+            self.tree_fp_ranking_list.append(data[2])
+            self.nb_ka = len(data[0])-len(data[1][1])
+
+    def end(self):
+        self.success.emit((self.tree_fp_ranking_list, self.nb_ka, 'Tree_FP')) 
+
+class AccumulateRankingsPath(ComputeCube):
+    """
+    A compute Cube that receives rankings and assemble them in a list
+    """
+
+    classification = [["Compute", "Accumulator"]]
+
+    path_fpintake = ObjectInputPort('path_fpintake')
+    success = ObjectOutputPort('success')
+
+    def begin(self):
+        self.path_fp_ranking_list = list()
+
+    def process(self, data, port):
+        if port == 'path_fpintake':
+            self.path_fp_ranking_list.append(data[2])
+            self.nb_ka = len(data[0])-len(data[1][1])
+
+    def end(self):
+        self.success.emit((self.path_fp_ranking_list, self.nb_ka, 'Path_FP')) 
+
+class AccumulateRankingsCircular(ComputeCube):
+    """
+    A compute Cube that receives rankings and assemble them in a list
+    """
+
+    classification = [["Compute", "Accumulator"]]
+
+    circular_fpintake = ObjectInputPort('circular_fpintake')
+    success = ObjectOutputPort('success')
+
+    def begin(self):
+        self.circular_fp_ranking_list = list()
+
+    def process(self, data, port):
+        if port == 'circular_fpintake':
+            self.circular_fp_ranking_list.append(data[2])
+            self.nb_ka = len(data[0])-len(data[1][1])
+
+    def end(self):
+        self.success.emit((self.circular_fp_ranking_list, self.nb_ka, 'Circular_FP')) 
+
+class AccumulateRankingsROCS(ComputeCube):
+    """
+    A compute Cube that receives rankings and assemble them in a list
+    """
+
+    classification = [["Compute", "Accumulator"]]
+
+    url = parameter.StringParameter('url', default="http://10.0.1.22:4242", help_text="Url of the Restful FastROCS Server for the request")
+
+    rocsintake = ObjectInputPort('rocsintake')
+    success = ObjectOutputPort('success')
+
+    def begin(self):
+        self.rocs_ranking_list = list()
+
+    def process(self, data, port):
+        if port == 'rocsintake':
+            self.rocs_ranking_list.append(data[2])
+            self.nb_ka = len(data[0])-len(data[1][1])
+            self.dataset_id = data[3]
+
+    def end(self):
+        url = self.args.url + '/datasets/'
+        if self.dataset_id != None:
+            response = requests.delete(url + str(self.dataset_id) + '/')
+        self.success.emit((self.rocs_ranking_list, self.nb_ka, 'FastROCS'))
+
 class AnalyseRankings(ComputeCube):
     """
 

@@ -10,7 +10,7 @@ from floe.api import OEMolOStreamCube
 from floe.api import OEMolIStreamCube
 
 # Declare Floe, add metadata for UI
-job = WorkFloe('FastROCS VS Floe')
+job = WorkFloe('Combined Floe')
 job.description = """
 Virtual Screening of a database against actives with the FastROCS method
 """
