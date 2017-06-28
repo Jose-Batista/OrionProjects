@@ -3,7 +3,7 @@
 
 from cubes.input_cubes import Test 
 from cubes.compute_cubes import ParallelFastROCSRanking, AccumulateRankings
-from cubes.output_cubes import TextRankingOutputCube
+from cubes.output_cubes import WriteRanking
 from floe.api import WorkFloe, CubeGroup
 from floe.api import OEMolIStreamCube
 from floe.api import OEMolOStreamCube, FileOutputCube
@@ -23,7 +23,7 @@ request_cube.promote_parameter('url', promoted_name='url')
 accu_cube = AccumulateRankings('accu')
 accu_cube.promote_parameter('url', promoted_name='url')
 
-output_cube = TextRankingOutputCube('results_output')
+output_cube = WriteRanking('results_output')
 output_cube.promote_parameter('name', promoted_name='name')
 
 job.add_cubes(input_cube, request_cube, accu_cube, output_cube)

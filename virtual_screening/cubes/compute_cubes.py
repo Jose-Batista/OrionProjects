@@ -75,14 +75,15 @@ class IndexGenerator(ComputeCube):
     title = 'IndexGenerator_Title' 
 
     def begin(self):
-        self.log.info("Generator Cube runnig")
+        self.log.info("Generator Cube running")
 
     def process(self, data, port):
+        self.act_list = data
         pass
 
     def end(self):
-        total = 100
-        nb_index = 33 
+        total = len(self.act_list)
+        nb_index = total // 3
         iteration = 10
         
         for idx in range (iteration):
@@ -142,7 +143,12 @@ class PrepareRanking(ComputeCube):
 
         dataset = open(self.dataset.name, 'rb')
         parameters["dataset"] = (self.dataset.name, dataset, 'application/octet-stream')
-        parameters["name"] = 'dataset of active molecules' 
+
+        letters = "abcdefghijklmnopqrstuvwxyz123456789"
+        uniqueness = ""
+        for i in range(0, 8):
+            uniqueness += letters[random.randint(0, len(letters)-1)]
+        parameters["name"] = 'dataset of active molecules ' + uniqueness
 
         multipart_data = MultipartEncoder(
             fields=parameters
@@ -815,9 +821,10 @@ class ParallelFastROCSRanking(ParallelComputeCube):
     def run_query(self):
         url = self.args.url + "/queries/"
 
+        print('Baitset : ', self.baitset[1])
         self.query = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)  
-        for idx in self.baitset[1]:
-            with oechem.oemolostream(self.query.name) as ofs:
+        with oechem.oemolostream(self.query.name) as ofs:
+            for idx in self.baitset[1]:
                 oechem.OEWriteMolecule(ofs, self.act_list[idx])
         self.query.flush()
 
@@ -866,6 +873,8 @@ class ParallelFastROCSRanking(ParallelComputeCube):
                 break
 
         response = requests.get(self.args.url + results["results"])
+
+        requests.delete(status_url)
         return response
 
     def create_rankings(self, results_data):
@@ -966,8 +975,8 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
         url = self.args.url + "/queries/"
 
         self.query = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)  
-        for idx in self.baitset[1]:
-            with oechem.oemolostream(self.query.name) as ofs:
+        with oechem.oemolostream(self.query.name) as ofs:
+            for idx in self.baitset[1]:
                 oechem.OEWriteMolecule(ofs, self.act_list[idx])
         self.query.flush()
 
@@ -979,6 +988,7 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
         parameters["SimFunc"] = 'Tanimoto'
         parameters["SimType"] = 'Combo'
         parameters["shape_only"] = False
+        parameters["oformat"] = 'oeb'
 
         with open(self.query.name, "rb") as query_file:
             response = requests.post(
@@ -1017,10 +1027,14 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
                 break
 
         response = requests.get(self.args.url + results["results"])
+
+        requests.delete(status_url)
         return response
 
     def create_cur_scores(self, results_data):
         self.cur_scores = {}
+#        bait=False
+#        baitname=''
         with tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False) as temp:
             temp.write(results_data.content)
             temp.flush()
@@ -1033,6 +1047,20 @@ class ParallelInsertKARestfulROCS(ParallelComputeCube):
                                 self.cur_scores[mol.GetTitle()] = (tanimoto_combo, mol.CreateCopy())
                         else:
                             self.cur_scores[mol.GetTitle()] = (tanimoto_combo, mol.CreateCopy())
+                    #Test/#
+#                    else:
+#                        if bait!=True or mol.GetTitle() == baitname:
+#                            baitname = mol.GetTitle()
+#                            print(self.baitset[0], mol.GetTitle())
+#                            tanimoto_combo = float(oechem.OEGetSDData(mol, "TanimotoCombo"))
+#                            if mol.GetTitle() in self.cur_scores.keys():
+#                                if self.cur_scores[mol.GetTitle()][0] < tanimoto_combo:
+#                                    self.cur_scores[mol.GetTitle()] = (tanimoto_combo, mol.CreateCopy())
+#                            else:
+#                                self.cur_scores[mol.GetTitle()] = (tanimoto_combo, mol.CreateCopy())
+#                            bait=True
+                     #/Test#
+                            
             os.remove(temp.name)
 
     def update_ranking(self, mol, max_tanimoto, ka_tag):

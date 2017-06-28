@@ -4,7 +4,7 @@
 from cubes.input_cubes import IndexInputCube
 from cubes.compute_cubes import (AccuMolList, PrepareRanking, ParallelTreeFPRanking, ParallelPathFPRanking, ParallelCircularFPRanking, ParallelFastROCSRanking,
                                 ParallelTreeFPInsertKA, ParallelPathFPInsertKA, ParallelCircularFPInsertKA, ParallelInsertKARestfulROCS, AccumulateRankingsTree, AnalyseRankings, IndexGenerator)
-from cubes.output_cubes import TextRankingOutputCube, PlotResults, ResultsOutputCube
+from cubes.output_cubes import WriteRanking, PlotResults, ResultsOutputCube
 from floe.api import WorkFloe, CubeGroup, ParallelCubeGroup
 from floe.api import OEMolOStreamCube
 from floe.api import OEMolIStreamCube
@@ -39,7 +39,7 @@ accu_rankings = AccumulateRankingsTree('accumulate rankings')
 analyse_rankings = AnalyseRankings('analyse rankings')
 analyse_rankings.promote_parameter('topn', promoted_name='topn')
 
-write_ranking = TextRankingOutputCube('write ranking')
+write_ranking = WriteRanking('write ranking')
 write_ranking.promote_parameter('name', promoted_name='output_dir')
 results_output = ResultsOutputCube('results output')
 results_output.promote_parameter('name', promoted_name='output_dir')

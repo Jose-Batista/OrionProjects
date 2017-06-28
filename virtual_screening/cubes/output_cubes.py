@@ -23,7 +23,7 @@ from floe.api.ports import (InputPort, OutputPort, Port, MoleculeInputPort,
 
 from floe.api import ( parameter, ParallelOEMolComputeCube, OEMolComputeCube, SinkCube)
 
-class TextRankingOutputCube(SinkCube):
+class WriteRanking(SinkCube):
     """
     A cube that outputs text
     """
@@ -55,7 +55,7 @@ class TextRankingOutputCube(SinkCube):
         if self.in_orion:
             self.stream = tempfile.NamedTemporaryFile()
         else:
-            path = self.args.name + "ranking_" + self.name_ext + ".txt"
+            path = self.args.name + "_ranking_" + self.name_ext + ".txt"
             self.stream = open(path, 'wb')
         for i, ranking in enumerate(self.ranking_list):
             text = "\n" + "Set n°" + str(ranking[0][2]) + "\n"
@@ -68,7 +68,7 @@ class TextRankingOutputCube(SinkCube):
 
         if self.in_orion:
             self.stream.flush()
-            name = self.args.name + "ranking_" + self.name_ext + ".txt"
+            name = self.args.name + "_ranking_" + self.name_ext + ".txt"
             resp = upload_file(name, self.stream.name)
             self.log.info("Created result file {} with ID {}".format(self.args.name, resp['id']))
         else:
