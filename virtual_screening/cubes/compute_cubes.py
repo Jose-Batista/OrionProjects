@@ -105,7 +105,7 @@ class IndexGenerator(ComputeCube):
 
 class PrepareRanking(ComputeCube):
 
-    url = parameter.StringParameter('url', default="http://10.0.61.25:4711", help_text="Url of the Restful FastROCS Server for the request")
+    url = parameter.StringParameter('url', default="", help_text="Url of the Restful FastROCS Server for the request")
 
     act_input = ObjectInputPort('act_input')
     baitset_input = ObjectInputPort('baitset_input')
@@ -119,7 +119,8 @@ class PrepareRanking(ComputeCube):
     def process(self, data, port):
         if port is 'act_input':
             self.act_list = data
-            self.dataset_infos = self.add_dataset()
+            if self.args.url != '':
+                self.dataset_infos = self.add_dataset()
             
         if port is 'baitset_input':
             self.baitsets.append(data)
@@ -821,7 +822,6 @@ class ParallelFastROCSRanking(ParallelComputeCube):
     def run_query(self):
         url = self.args.url + "/queries/"
 
-        print('Baitset : ', self.baitset[1])
         self.query = tempfile.NamedTemporaryFile(suffix='.oeb', mode='wb', delete=False)  
         with oechem.oemolostream(self.query.name) as ofs:
             for idx in self.baitset[1]:
