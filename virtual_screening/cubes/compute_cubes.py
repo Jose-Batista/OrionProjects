@@ -197,8 +197,12 @@ class ParallelTreeFPRanking(ParallelComputeCube):
         for idx in self.baitset[1]:
             smiles = oechem.OEMolToSmiles(self.act_list[idx])
             safe_smiles = parse.quote(smiles)
-            url = "%s/%s/hitlist?smiles=%s&oformat=csv&maxhits=%d" %(self.args.url, 'tree_db', safe_smiles, self.args.topn) 
-            response = requests.get( url )
+            url = "%s/api/v1/graphsim/emolecules/%s/output.csv" %(self.args.url, 'tree') 
+
+            data = {'num_hits': self.args.topn,
+                'smiles': safe_smiles}
+
+            response = requests.get( url, data=data )
             hitlist = response.content.decode().split('\n')
             sys.stdout.flush()
             hitlist.pop(0)
@@ -206,7 +210,7 @@ class ParallelTreeFPRanking(ParallelComputeCube):
             cur_rank = list()
             for mol in hitlist:
                 cur_mol = mol.split(',')
-                cur_rank.append((cur_mol[1], float(cur_mol[2]), self.baitset[0], False))
+                cur_rank.append((cur_mol[1], float(cur_mol[5]), self.baitset[0], False))
             if len(self.ranking) == 0:
                 self.ranking = cur_rank
             else:
