@@ -402,9 +402,12 @@ class ParallelPathFPRanking(ParallelComputeCube):
         self.ranking = data[2]
         for idx in self.baitset[1]:
             smiles = oechem.OEMolToSmiles(self.act_list[idx])
-            safe_smiles = parse.quote(smiles)
-            url = "%s/%s/hitlist?smiles=%s&oformat=csv&maxhits=%d" %(self.args.url, 'path_db', safe_smiles, self.args.topn) 
-            response = requests.get( url )
+            url = "%s/api/v1/graphsim/emolecules/%s/output.csv" %(self.args.url, 'path') 
+
+            data = {'num_hits': self.args.topn,
+                'smiles': smiles}
+
+            response = requests.get( url, data=data )
             hitlist = response.content.decode().split('\n')
             hitlist.pop(0)
             hitlist.pop()
@@ -599,9 +602,12 @@ class ParallelCircularFPRanking(ParallelComputeCube):
         self.ranking = data[2]
         for idx in self.baitset[1]:
             smiles = oechem.OEMolToSmiles(self.act_list[idx])
-            safe_smiles = parse.quote(smiles)
-            url = "%s/%s/hitlist?smiles=%s&oformat=csv&maxhits=%d" %(self.args.url, 'circular_db', safe_smiles, self.args.topn) 
-            response = requests.get( url )
+            url = "%s/api/v1/graphsim/emolecules/%s/output.csv" %(self.args.url, 'circular') 
+
+            data = {'num_hits': self.args.topn,
+                'smiles': smiles}
+
+            response = requests.get( url, data=data )
             hitlist = response.content.decode().split('\n')
             sys.stdout.flush()
             hitlist.pop(0)
