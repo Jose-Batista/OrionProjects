@@ -414,7 +414,7 @@ class ParallelPathFPRanking(ParallelComputeCube):
             cur_rank = list()
             for mol in hitlist:
                 cur_mol = mol.split(',')
-                cur_rank.append((cur_mol[1], float(cur_mol[2]), self.baitset[0], False))
+                cur_rank.append((cur_mol[1], float(cur_mol[5]), self.baitset[0], False))
             if len(self.ranking) == 0:
                 self.ranking = cur_rank
             else:
@@ -615,7 +615,7 @@ class ParallelCircularFPRanking(ParallelComputeCube):
             cur_rank = list()
             for mol in hitlist:
                 cur_mol = mol.split(',')
-                cur_rank.append((cur_mol[1], float(cur_mol[2]), self.baitset[0], False))
+                cur_rank.append((cur_mol[1], float(cur_mol[5]), self.baitset[0], False))
             if len(self.ranking) == 0:
                 self.ranking = cur_rank
             else:
