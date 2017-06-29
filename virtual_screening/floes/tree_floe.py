@@ -26,7 +26,6 @@ index_generator = IndexGenerator('index generator')
 accu_act = AccuMolList('accumulate actives')
 
 prep_ranking = PrepareRanking('prepare similarity calculation')
-prep_ranking.promote_parameter('url', promoted_name='fastrocs_url')
 
 create_treeFPranking = ParallelTreeFPRanking('create_treeFPranking')
 create_treeFPranking.promote_parameter('url', promoted_name='fastfp_url')
