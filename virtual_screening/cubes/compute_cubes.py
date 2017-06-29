@@ -127,7 +127,11 @@ class PrepareRanking(ComputeCube):
 
         if len(self.act_list) > 0 :
             while len(self.baitsets) > 0 :
-                self.success.emit((self.act_list, self.baitsets.pop(), self.ranking, self.dataset_infos))
+                if self.args.url != '':
+                    self.success.emit((self.act_list, self.baitsets.pop(), self.ranking, self.dataset_infos))
+                else:
+                    self.success.emit((self.act_list, self.baitsets.pop(), self.ranking))
+
 
     def add_dataset(self):
         url = self.args.url + "/datasets/"
