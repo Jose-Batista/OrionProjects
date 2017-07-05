@@ -127,7 +127,10 @@ class PrepareRanking(ComputeCube):
 
         if len(self.act_list) > 0 :
             while len(self.baitsets) > 0 :
-                self.success.emit((self.act_list, self.baitsets.pop(), self.ranking, self.dataset_infos))
+                if self.args.url != '':
+                    self.success.emit((self.act_list, self.baitsets.pop(), self.ranking, self.dataset_infos))
+                else:
+                    self.success.emit((self.act_list, self.baitsets.pop(), self.ranking))
 
     def add_dataset(self):
         url = self.args.url + "/datasets/"
@@ -1134,6 +1137,39 @@ class AccumulateRankings(ComputeCube):
         self.success.emit((self.path_fp_ranking_list, self.nb_ka, 'Path_FP')) 
         self.success.emit((self.circular_fp_ranking_list, self.nb_ka, 'Circular_FP')) 
         self.success.emit((self.rocs_ranking_list, self.nb_ka, 'FastROCS'))
+
+class AccumulateRankingsFP(ComputeCube):
+    """
+    A compute Cube that receives rankings and assemble them in a list
+    """
+
+    classification = [["Compute", "Accumulator"]]
+
+    tree_fpintake = ObjectInputPort('tree_fpintake')
+    path_fpintake = ObjectInputPort('path_fpintake')
+    circular_fpintake = ObjectInputPort('circular_fpintake')
+    success = ObjectOutputPort('success')
+
+    def begin(self):
+        self.tree_fp_ranking_list = list()
+        self.path_fp_ranking_list = list()
+        self.circular_fp_ranking_list = list()
+
+    def process(self, data, port):
+        if port == 'tree_fpintake':
+            self.tree_fp_ranking_list.append(data[2])
+            self.nb_ka = len(data[0])-len(data[1][1])
+        if port == 'path_fpintake':
+            self.path_fp_ranking_list.append(data[2])
+            self.nb_ka = len(data[0])-len(data[1][1])
+        if port == 'circular_fpintake':
+            self.circular_fp_ranking_list.append(data[2])
+            self.nb_ka = len(data[0])-len(data[1][1])
+
+    def end(self):
+        self.success.emit((self.tree_fp_ranking_list, self.nb_ka, 'Tree_FP')) 
+        self.success.emit((self.path_fp_ranking_list, self.nb_ka, 'Path_FP')) 
+        self.success.emit((self.circular_fp_ranking_list, self.nb_ka, 'Circular_FP')) 
 
 class AccumulateRankingsTree(ComputeCube):
     """
