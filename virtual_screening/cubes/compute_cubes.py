@@ -291,6 +291,9 @@ class ParallelTreeFPInsertKA(ParallelComputeCube):
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
 
+    numbits = parameter.IntegerParameter('numbits', default=4096,
+                                    help_text="size of the fingerprints")
+
     data_input = ObjectInputPort('data_input')
     success = ObjectOutputPort('success')
 
@@ -299,7 +302,7 @@ class ParallelTreeFPInsertKA(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
-        self.fptype = 105
+        self.fptype = OEFPType_Tree 
         self.fp_list = list()
 
         self.calculate_fp()
@@ -308,10 +311,14 @@ class ParallelTreeFPInsertKA(ParallelComputeCube):
         self.success.emit((self.act_list, self.baitset, self.ranking)) 
 
     def calculate_fp(self):
-        
+        minbond = 0
+        maxbond = 4
+        atype = AtmNum|Arom|Chiral|FCharge|HvyDeg|Hyb|EqHalo
+        btype = Order|Chiral
         for mol in self.act_list:
             fp = oegraphsim.OEFingerPrint()
-            oegraphsim.OEMakeFP(fp, mol, self.fptype)
+            oegraphsim.OEMakeTreeFP(fp, mol, self.args.numbits, minbond, maxbond, atype, btype)
+                #oegraphsim.OEMakeFP(fp, mol, self.fptype)
 
             self.fp_list.append(fp)
 
@@ -488,6 +495,9 @@ class ParallelPathFPInsertKA(ParallelComputeCube):
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
 
+    numbits = parameter.IntegerParameter('numbits', default=4096,
+                                    help_text="size of the fingerprints")
+
     data_input = ObjectInputPort('data_input')
     success = ObjectOutputPort('success')
 
@@ -496,7 +506,7 @@ class ParallelPathFPInsertKA(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
-        self.fptype = 102
+        self.fptype = OEFPType_Path
         self.fp_list = list()
 
         self.calculate_fp()
@@ -505,10 +515,14 @@ class ParallelPathFPInsertKA(ParallelComputeCube):
         self.success.emit((self.act_list, self.baitset, self.ranking)) 
 
     def calculate_fp(self):
+        minbond = 0
+        maxbond = 4
+        atype = AtmNum|Arom|Chiral|FCharge|HvyDeg|Hyb|EqHalo
+        btype = Order|Chiral
         
         for mol in self.act_list:
             fp = oegraphsim.OEFingerPrint()
-            oegraphsim.OEMakeFP(fp, mol, self.fptype)
+            oegraphsim.OEMakePathFP(fp, mol, self.args.numbits, minbond, maxbond, atype, btype)
 
             self.fp_list.append(fp)
 
@@ -686,6 +700,9 @@ class ParallelCircularFPInsertKA(ParallelComputeCube):
     topn = parameter.IntegerParameter('topn', default=100,
                                     help_text="Number of top molecules returned in the rankinNumber of top molecules returned in the ranking")
 
+    numbits = parameter.IntegerParameter('numbits', default=4096,
+                                    help_text="size of the fingerprints")
+
     data_input = ObjectInputPort('data_input')
     success = ObjectOutputPort('success')
 
@@ -694,7 +711,7 @@ class ParallelCircularFPInsertKA(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
-        self.fptype = 104
+        self.fptype = OEFPType_Circular
         self.fp_list = list()
 
         self.calculate_fp()
@@ -703,10 +720,14 @@ class ParallelCircularFPInsertKA(ParallelComputeCube):
         self.success.emit((self.act_list, self.baitset, self.ranking)) 
 
     def calculate_fp(self):
+        minbond = 0
+        maxbond = 4
+        atype = AtmNum|Arom|Chiral|FCharge|HvyDeg|Hyb|EqHalo
+        btype = Order|Chiral
         
         for mol in self.act_list:
             fp = oegraphsim.OEFingerPrint()
-            oegraphsim.OEMakeFP(fp, mol, self.fptype)
+            oegraphsim.OEMakeCircularFP(fp, mol, self.args.numbits, minbond, maxbond, atype, btype)
 
             self.fp_list.append(fp)
 
