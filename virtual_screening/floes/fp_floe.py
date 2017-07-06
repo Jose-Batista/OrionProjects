@@ -40,10 +40,13 @@ create_circularFPranking.promote_parameter('topn', promoted_name='topn')
 
 insert_treeFPka = ParallelTreeFPInsertKA('insert known actives in Tree Fingerprint ranking')
 insert_treeFPka.promote_parameter('topn', promoted_name='topn')
+insert_treeFPka.promote_parameter('numbits', promoted_name='numbits')
 insert_pathFPka = ParallelPathFPInsertKA('insert known actives in Path Fingerprint ranking')
 insert_pathFPka.promote_parameter('topn', promoted_name='topn')
+insert_pathFPka.promote_parameter('numbits', promoted_name='numbits')
 insert_circularFPka = ParallelCircularFPInsertKA('insert known actives in Circular Fingerprint ranking')
 insert_circularFPka.promote_parameter('topn', promoted_name='topn')
+insert_circularFPka.promote_parameter('numbits', promoted_name='numbits')
 
 accu_rankings = AccumulateRankingsFP('accumulate rankings')
 analyse_rankings = AnalyseRankings('analyse rankings')

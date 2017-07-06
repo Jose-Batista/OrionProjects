@@ -18,6 +18,8 @@ import matplotlib.pyplot as plt
 
 from openeye import oechem
 from openeye import oegraphsim
+from openeye.oegraphsim import OEFPAtomType_AtomicNumber as AtmNum, OEFPAtomType_Aromaticity as Arom, OEFPAtomType_Chiral as Chiral, OEFPAtomType_FormalCharge as FCharge, OEFPAtomType_HvyDegree as HvyDeg, OEFPAtomType_Hybridization as Hyb, OEFPAtomType_EqHalogen as EqHalo, OEFPAtomType_HCount as HCount 
+from openeye.oegraphsim import OEFPBondType_BondOrder as Order, OEFPBondType_Chiral as ChiralB
 from openeye import oeshape
 from openeye import oeomega
 from openeye import oemolprop
@@ -305,7 +307,7 @@ class ParallelTreeFPInsertKA(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
-        self.fptype = OEFPType_Tree 
+        self.fptype = oegraphsim.OEFPType_Tree 
         self.fp_list = list()
 
         self.calculate_fp()
@@ -317,11 +319,12 @@ class ParallelTreeFPInsertKA(ParallelComputeCube):
         minbond = 0
         maxbond = 4
         atype = AtmNum|Arom|Chiral|FCharge|HvyDeg|Hyb|EqHalo
-        btype = Order|Chiral
+        btype = Order|ChiralB
+
         for mol in self.act_list:
             fp = oegraphsim.OEFingerPrint()
             oegraphsim.OEMakeTreeFP(fp, mol, self.args.numbits, minbond, maxbond, atype, btype)
-                #oegraphsim.OEMakeFP(fp, mol, self.fptype)
+            #oegraphsim.OEMakeFP(fp, mol, self.fptype)
 
             self.fp_list.append(fp)
 
@@ -509,7 +512,7 @@ class ParallelPathFPInsertKA(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
-        self.fptype = OEFPType_Path
+        self.fptype = oegraphsim.OEFPType_Path
         self.fp_list = list()
 
         self.calculate_fp()
@@ -521,11 +524,12 @@ class ParallelPathFPInsertKA(ParallelComputeCube):
         minbond = 0
         maxbond = 4
         atype = AtmNum|Arom|Chiral|FCharge|HvyDeg|Hyb|EqHalo
-        btype = Order|Chiral
-        
+        btype = Order|ChiralB
+
         for mol in self.act_list:
             fp = oegraphsim.OEFingerPrint()
             oegraphsim.OEMakePathFP(fp, mol, self.args.numbits, minbond, maxbond, atype, btype)
+            #oegraphsim.OEMakeFP(fp, mol, self.fptype)
 
             self.fp_list.append(fp)
 
@@ -714,7 +718,7 @@ class ParallelCircularFPInsertKA(ParallelComputeCube):
         self.act_list = data[0]
         self.baitset = data[1]
         self.ranking = data[2]
-        self.fptype = OEFPType_Circular
+        self.fptype = oegraphsim.OEFPType_Circular
         self.fp_list = list()
 
         self.calculate_fp()
@@ -726,11 +730,12 @@ class ParallelCircularFPInsertKA(ParallelComputeCube):
         minbond = 0
         maxbond = 4
         atype = AtmNum|Arom|Chiral|FCharge|HvyDeg|Hyb|EqHalo
-        btype = Order|Chiral
+        btype = Order|ChiralB
         
         for mol in self.act_list:
             fp = oegraphsim.OEFingerPrint()
             oegraphsim.OEMakeCircularFP(fp, mol, self.args.numbits, minbond, maxbond, atype, btype)
+            #oegraphsim.OEMakeFP(fp, mol, self.fptype)
 
             self.fp_list.append(fp)
 
