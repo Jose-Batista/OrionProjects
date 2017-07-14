@@ -1304,9 +1304,9 @@ class AnalyseRankings(ComputeCube):
         self.ranking_list = data[0]
         self.nb_ka = data[1]
         self.method = data[2]
-        self.results_avg = self.ranking_analysis()
+        self.datas = self.ranking_analysis()
 
-        self.success.emit((self.results_avg, self.method))
+        self.success.emit((self.datas, self.method))
 
     def ranking_analysis(self):
         results = pd.DataFrame()
@@ -1323,7 +1323,7 @@ class AnalyseRankings(ComputeCube):
                 set_results.loc[row] = [rr, hr]
             results = pd.concat([results, set_results])
         
-        results_avg = pd.DataFrame()
+        datas = pd.DataFrame()
 
         if self.method == 'Tree_FP':
             name = 'FP_tree'
@@ -1334,9 +1334,15 @@ class AnalyseRankings(ComputeCube):
         elif self.method == 'FastROCS':
             name = 'FR'
 
-        results_avg['Average RR ' + name] = results.groupby(results.index)['RR'].mean()
-        results_avg['Average HR ' + name] = results.groupby(results.index)['HR'].mean()
-        results_avg = results_avg.head(self.args.topn)
+        datas['Average RR ' + name] = results.groupby(results.index)['RR'].mean()
+        datas['Average HR ' + name] = results.groupby(results.index)['HR'].mean()
 
-        return results_avg
+        #datas['Minimum RR ' + name] = results.groupby(results.index)['RR'].min()
+        #datas['Minimum HR ' + name] = results.groupby(results.index)['HR'].min()
+
+        #datas['Maximum RR ' + name] = results.groupby(results.index)['RR'].max()
+        #datas['Maximum HR ' + name] = results.groupby(results.index)['HR'].max()
+        datas = datas.head(self.args.topn)
+
+        return datas
 

@@ -176,13 +176,13 @@ class PlotResults(SinkCube):
         plt.subplots_adjust(hspace=0.4)
 
         self.results.plot(ax=axes[0], y = [col for col in self.results.columns if 'RR' in col])
-        axes[0].set_xlabel('Top Rank Molecules')
+        axes[0].set_xlabel('Top Ranked Molecules')
         axes[0].set_ylabel('Rate (%)')
         axes[0].set_title("Average RR Rates") 
         axes[0].legend([col.split(" ")[2] for col in self.results.columns if ('RR' in col)])
         
         self.results.plot(ax=axes[1], y = [col for col in self.results.columns if 'HR' in col])
-        axes[1].set_xlabel('Top Rank Molecules')
+        axes[1].set_xlabel('Top Ranked Molecules')
         axes[1].set_ylabel('Rate (%)')
         axes[1].set_title("Average HR Rates") 
         axes[1].legend([col.split(" ")[2] for col in self.results.columns if ('HR' in col)])
